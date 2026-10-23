@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 📚 Doc2Practice — AI-Powered Learning Platform
 > **Slogan:** *“Từ tài liệu đến thành thạo.”*
 
@@ -163,3 +164,6 @@ d:\Doc2Practice\
    - Supabase Storage: Lưu trữ file PDF an toàn trên cloud bucket.
    - Supabase Database: Lưu trữ bảng `documents`, `quiz_sets`, `questions`, `attempts`.
 
+=======
+# Doc2Practice
+>>>>>>> 1694563a14fe2dd348655df41f77eaf9af78484f
