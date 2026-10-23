@@ -1,0 +1,170 @@
+import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  FileText,
+  HelpCircle,
+  Layers,
+  History,
+  Settings,
+  PlusCircle,
+  BookOpen,
+  Sparkles,
+  ExternalLink,
+  LogOut,
+  AlertTriangle
+} from 'lucide-react';
+import { Modal } from './Modal';
+
+interface SidebarProps {
+  onCloseMobile?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
+  const navigate = useNavigate();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const navItems = [
+    { label: 'Tổng quan', path: '/app/dashboard', icon: LayoutDashboard },
+    { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
+    { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
+    { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
+    { label: 'Lịch sử luyện tập', path: '/app/history', icon: History },
+    { label: 'Cài đặt', path: '/app/settings', icon: Settings },
+  ];
+
+  const handleLogout = () => {
+    setShowLogoutModal(false);
+    if (onCloseMobile) onCloseMobile();
+    navigate('/login');
+  };
+
+  return (
+    <aside className="w-64 h-full bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 select-none">
+      <div>
+        {/* Logo Section */}
+        <div className="h-16 flex items-center px-6 border-b border-slate-100 gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-sm">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-bold text-slate-900 text-lg leading-tight tracking-tight">
+              Doc<span className="text-indigo-600">2</span>Practice
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">Bản dùng thử MVP</div>
+          </div>
+        </div>
+
+        {/* Action Button: Tạo bộ câu hỏi */}
+        <div className="p-4">
+          <NavLink
+            to="/app/create-quiz"
+            onClick={onCloseMobile}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-medium text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all transform active:scale-98"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Tạo bộ câu hỏi mới</span>
+          </NavLink>
+        </div>
+
+        {/* Navigation links */}
+        <nav className="px-3 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onCloseMobile}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Bottom Info / Hint & Logout */}
+      <div className="p-4 border-t border-slate-100 space-y-3">
+        <div className="p-3 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-xl border border-indigo-100/60 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-indigo-900 mb-1">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Demo Mode</span>
+          </div>
+          <p className="text-indigo-700/80 leading-relaxed text-[11px]">
+            Hệ thống đang hoạt động với dữ liệu mô phỏng. Sẵn sàng kết nối Gemini AI & Supabase.
+          </p>
+        </div>
+
+        <div className="space-y-1 pt-1">
+          <NavLink
+            to="/"
+            onClick={onCloseMobile}
+            className="flex items-center justify-between text-xs text-slate-500 hover:text-indigo-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <span>Về trang giới thiệu</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </NavLink>
+
+          <button
+            type="button"
+            onClick={() => setShowLogoutModal(true)}
+            className="w-full flex items-center justify-between text-xs text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition-colors font-semibold"
+          >
+            <span className="flex items-center gap-2">
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Đăng xuất</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modal xác nhận đăng xuất */}
+      <Modal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Xác nhận đăng xuất"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">Bạn muốn rời khỏi phiên học tập?</h4>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Tiến độ luyện tập và dữ liệu của bạn đã được tự động lưu an toàn trên trình duyệt.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(false)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Ở lại
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm shadow-rose-200 transition-all"
+            >
+              Đăng xuất
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </aside>
+  );
+};
