@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { DifficultyLevel } from '../types';
 import { createQuizAndFlashcards } from '../services/storage';
-import { getStoredApiKey } from '../services/aiService';
+import { getStoredApiKey, sanitizeAcademicTopic } from '../services/aiService';
 
 export const CreateQuizPage = () => {
   const navigate = useNavigate();
@@ -67,7 +67,7 @@ export const CreateQuizPage = () => {
         name: docParam,
         size: sizeParam || '3.2 MB',
       });
-      setCustomTitle(docParam.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
+      setCustomTitle(sanitizeAcademicTopic(docParam));
     }
   }, [searchParams]);
 
@@ -113,7 +113,7 @@ export const CreateQuizPage = () => {
     }
 
     if (!customTitle) {
-      setCustomTitle(file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
+      setCustomTitle(sanitizeAcademicTopic(file.name));
     }
   };
 
@@ -125,7 +125,7 @@ export const CreateQuizPage = () => {
   const selectSampleFile = (name: string, size: string, sampleContent?: string) => {
     setErrorMsg(null);
     setSelectedFile({ name, size, content: sampleContent });
-    setCustomTitle(name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
+    setCustomTitle(sanitizeAcademicTopic(name));
   };
 
   // Kích hoạt sinh câu hỏi
@@ -150,10 +150,11 @@ export const CreateQuizPage = () => {
     }, 700);
 
     try {
-      const finalTitle = customTitle.trim() || (selectedFile ? selectedFile.name : 'Bài học tổng hợp');
+      const rawTitle = customTitle.trim() || (selectedFile ? selectedFile.name : 'Chuyên đề học tập');
+      const finalTitle = sanitizeAcademicTopic(rawTitle);
       const textToAnalyze = activeTab === 'text'
         ? pastedText
-        : (selectedFile?.content || `Tài liệu môn học: ${selectedFile?.name}. Phân tích các chương cốt lõi, khái niệm căn bản và phương pháp áp dụng thực tiễn của ${selectedFile?.name}.`);
+        : (selectedFile?.content || finalTitle);
 
       const newQuiz = await createQuizAndFlashcards({
         title: finalTitle,
@@ -330,21 +331,33 @@ export const CreateQuizPage = () => {
                   <div className="flex flex-wrap gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => selectSampleFile('Kien_truc_Vi_dieu_khien_ARM.pdf', '4.2 MB')}
+                      onClick={() => selectSampleFile(
+                        'Kien_truc_Vi_dieu_khien_ARM.pdf',
+                        '4.2 MB',
+                        'Kiến trúc vi điều khiển ARM Cortex-M: Cấu trúc đường ống lệnh Pipeline 3 giai đoạn Fetch, Decode, Execute. Chế độ hoạt động Thread mode và Handler mode. Bộ điều khiển ngắt NVIC (Nested Vectored Interrupt Controller) hỗ trợ ưu tiên ngắt động và độ trễ thấp. Tập thanh ghi đa dụng R0-R12, con trỏ ngăn xếp SP, thanh ghi liên kết LR và bộ đếm chương trình PC. Cơ chế tiết kiệm năng lượng Sleep và Deep Sleep.'
+                      )}
                       className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
                     >
                       📄 Vi điều khiển ARM.pdf
                     </button>
                     <button
                       type="button"
-                      onClick={() => selectSampleFile('De_cuong_Tri_tue_Nhan_tao_2026.docx', '1.8 MB')}
+                      onClick={() => selectSampleFile(
+                        'De_cuong_Tri_tue_Nhan_tao_2026.docx',
+                        '1.8 MB',
+                        'Trí tuệ Nhân tạo và Học máy: Phân biệt học có giám sát Supervised Learning và học không giám sát Unsupervised Learning. Thuật toán tối ưu Gradient Descent và hàm mất mát Loss Function. Hiện tượng Overfitting và kỹ thuật Regularization L1 Lasso và L2 Ridge. Mạng nơ-ron sâu Feedforward và thuật toán lan truyền ngược Backpropagation.'
+                      )}
                       className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-medium border border-blue-200"
                     >
                       📝 Đề cương AI.docx
                     </button>
                     <button
                       type="button"
-                      onClick={() => selectSampleFile('Slide_Kien_truc_Mang_May_tinh.pptx', '6.5 MB')}
+                      onClick={() => selectSampleFile(
+                        'Slide_Kien_truc_Mang_May_tinh.pptx',
+                        '6.5 MB',
+                        'Mạng máy tính và truyền thông dữ liệu: Mô hình tham chiếu OSI 7 tầng và bộ giao thức TCP/IP. Cơ chế bắt tay 3 bước Three-way Handshake của giao thức TCP. So sánh TCP truyền tin cậy kiểm soát luồng và UDP phi kết nối tốc độ cao độ trễ thấp. Giao thức định tuyến IP, kỹ thuật chia mạng con CIDR và bảo mật với mã hóa TLS/SSL.'
+                      )}
                       className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200"
                     >
                       📊 Slide Mạng máy tính.pptx

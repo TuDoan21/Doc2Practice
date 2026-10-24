@@ -19,7 +19,9 @@ import {
   getStoredApiKey,
   generateQuizWithGemini,
   generateFlashcardsWithGemini,
-  generateOfflineQuizFromText
+  generateOfflineQuizFromText,
+  sanitizeAcademicTopic,
+  cleanTextFromFileName
 } from './aiService';
 
 const KEYS = {
@@ -85,7 +87,18 @@ export const getQuizSets = (): QuizSet[] => {
   initStorage();
   try {
     const raw = localStorage.getItem(KEYS.QUIZ_SETS);
-    return raw ? JSON.parse(raw) : initialQuizSets;
+    const sets: QuizSet[] = raw ? JSON.parse(raw) : initialQuizSets;
+    // Tự động làm sạch các câu hỏi cũ nếu từng dính tên file từ các lượt tạo trước
+    return sets.map((s) => ({
+      ...s,
+      title: cleanTextFromFileName(s.title),
+      questions: s.questions.map((q) => ({
+        ...q,
+        question: cleanTextFromFileName(q.question),
+        options: q.options.map((opt) => cleanTextFromFileName(opt)),
+        explanation: cleanTextFromFileName(q.explanation),
+      })),
+    }));
   } catch {
     return initialQuizSets;
   }
@@ -128,7 +141,17 @@ export const getFlashcardDecks = (): FlashcardDeck[] => {
   initStorage();
   try {
     const raw = localStorage.getItem(KEYS.FLASHCARDS);
-    return raw ? JSON.parse(raw) : initialFlashcardDecks;
+    const decks: FlashcardDeck[] = raw ? JSON.parse(raw) : initialFlashcardDecks;
+    return decks.map((d) => ({
+      ...d,
+      title: cleanTextFromFileName(d.title),
+      cards: d.cards.map((c) => ({
+        ...c,
+        front: cleanTextFromFileName(c.front),
+        back: cleanTextFromFileName(c.back),
+        example: c.example ? cleanTextFromFileName(c.example) : undefined,
+      })),
+    }));
   } catch {
     return initialFlashcardDecks;
   }
@@ -260,8 +283,12 @@ export const createQuizAndFlashcards = async (params: {
   difficulty: DifficultyLevel;
 }): Promise<QuizSet> => {
   const { title, fileName, fileSize, textContent, questionCount, difficulty } = params;
-  const docName = fileName || `${title}.docx`;
-  const docSize = fileSize || `${Math.max(1, Math.round(textContent.length / 1024))} KB`;
+  const cleanTitle = sanitizeAcademicTopic(title || fileName || 'Chuyên đề học tập');
+  const docName = fileName || `${cleanTitle}.docx`;
+  const docSize = fileSize || `${Math.max(1, Math.round((textContent || cleanTitle).length / 1024))} KB`;
+
+  // Làm sạch văn bản phân tích, loại bỏ hoàn toàn tên file hoặc định dạng file
+  const cleanedContent = cleanTextFromFileName(textContent || '') || cleanTitle;
 
   const apiKey = getStoredApiKey();
   let questions: Question[] = [];
@@ -270,23 +297,32 @@ export const createQuizAndFlashcards = async (params: {
   // 1. Thử gọi Gemini API nếu có key
   if (apiKey) {
     try {
-      questions = await generateQuizWithGemini(textContent, questionCount, difficulty, apiKey);
-      flashcards = await generateFlashcardsWithGemini(textContent, Math.min(questionCount, 6), apiKey);
+      questions = await generateQuizWithGemini(cleanedContent, questionCount, difficulty, apiKey);
+      flashcards = await generateFlashcardsWithGemini(cleanedContent, Math.min(questionCount, 6), apiKey);
     } catch (geminiError) {
       console.warn('Gemini API call failed, falling back to smart extractor:', geminiError);
-      questions = generateOfflineQuizFromText(title, textContent, questionCount, difficulty);
+      questions = generateOfflineQuizFromText(cleanTitle, cleanedContent, questionCount, difficulty);
     }
   } else {
-    // 2. Không có key: dùng engine ngữ nghĩa nội bộ bám sát nội dung
-    questions = generateOfflineQuizFromText(title, textContent, questionCount, difficulty);
+    // 2. Không có key: dùng engine học thuật chuyên môn nội bộ
+    questions = generateOfflineQuizFromText(cleanTitle, cleanedContent, questionCount, difficulty);
   }
 
-  // Đảm bảo có flashcards
+  // Đảm bảo không có câu hỏi nào bị lỗi chứa tên file
+  questions = questions.map((q, idx) => ({
+    ...q,
+    id: q.id || `q-${Date.now()}-${idx + 1}`,
+    question: cleanTextFromFileName(q.question),
+    options: q.options.map((opt) => cleanTextFromFileName(opt)),
+    explanation: cleanTextFromFileName(q.explanation),
+  }));
+
+  // Đảm bảo có flashcards sạch
   if (flashcards.length === 0) {
     flashcards = questions.slice(0, Math.min(questionCount, 6)).map((q, idx) => ({
       id: `fc-gen-${Date.now()}-${idx + 1}`,
-      front: q.question.replace(/^\[.*?\]\s*/, ''),
-      back: `Đáp án: ${q.options[q.correctAnswerIndex]}\n\n${q.explanation}`,
+      front: cleanTextFromFileName(q.question.replace(/^\[.*?\]\s*/, '')),
+      back: `Đáp án: ${q.options[q.correctAnswerIndex]}\n\n${cleanTextFromFileName(q.explanation)}`,
       status: 'new' as const,
     }));
   }
@@ -294,8 +330,8 @@ export const createQuizAndFlashcards = async (params: {
   // Tạo QuizSet
   const newQuizSet: QuizSet = {
     id: `quiz-${Date.now()}`,
-    title: title.startsWith('Luyện tập:') ? title : `Luyện tập: ${title}`,
-    description: `Bộ câu hỏi trắc nghiệm ${questionCount} câu từ "${docName}". Độ khó: ${
+    title: `Luyện tập: ${cleanTitle}`,
+    description: `Bộ câu hỏi trắc nghiệm ${questionCount} câu ôn tập chuyên đề "${cleanTitle}". Mức độ: ${
       difficulty === 'easy' ? 'Dễ' : difficulty === 'medium' ? 'Trung bình' : 'Nâng cao'
     }.`,
     sourceDocumentName: docName,
@@ -316,7 +352,7 @@ export const createQuizAndFlashcards = async (params: {
     name: docName,
     size: docSize,
     uploadedAt: new Date().toISOString().split('T')[0],
-    pageCount: Math.max(1, Math.ceil(textContent.length / 1500)),
+    pageCount: Math.max(1, Math.ceil((textContent || cleanTitle).length / 1500)),
     quizSetsGenerated: 1,
     status: 'ready',
   };
@@ -326,7 +362,7 @@ export const createQuizAndFlashcards = async (params: {
   const decks = getFlashcardDecks();
   decks.unshift({
     id: `deck-${Date.now()}`,
-    title: `Flashcards: ${title}`,
+    title: `Flashcards: ${cleanTitle}`,
     sourceDocumentName: docName,
     cards: flashcards,
   });
@@ -342,86 +378,13 @@ export const simulateAIGeneration = (
   count: number,
   difficulty: DifficultyLevel
 ): QuizSet => {
-  const cleanTitle = fileName
-    .replace(/\.[^/.]+$/, '')
-    .replace(/[_-]/g, ' ')
-    .trim();
-
-  const generatedQuestions: Question[] = [];
-
-  const sampleBank = [
-    {
-      q: `Theo tài liệu "${cleanTitle}", luận điểm trọng tâm được tác giả nhấn mạnh ở chương mở đầu là gì?`,
-      options: [
-        'Xây dựng nền tảng tư duy và nắm vững các định nghĩa cốt lõi trước khi đi vào thực hành',
-        'Bỏ qua các khái niệm lý thuyết và tập trung ngay vào công cụ nâng cao',
-        'Giảm thiểu thời gian chuẩn bị và phụ thuộc hoàn toàn vào tài liệu tham khảo bên ngoài',
-        'Chỉ áp dụng các quy chuẩn cho hệ thống quy mô lớn'
-      ],
-      correct: 0,
-      exp: 'Tài liệu nhấn mạnh việc nắm vững khái niệm bản chất và mô hình tư duy sẽ giúp người học dễ dàng thích ứng với các tình huống biến đổi sau này.'
-    },
-    {
-      q: `Phương pháp tối ưu nào được khuyến nghị trong "${cleanTitle}" khi xử lý các vấn đề phát sinh?`,
-      options: [
-        'Phân rã bài toán lớn thành các module nhỏ độc lập và kiểm tra từng bước',
-        'Thay đổi toàn bộ cấu trúc cùng một lúc để tiết kiệm thời gian',
-        'Bỏ qua các cảnh báo kiểm thử nếu hệ thống vẫn đang vận hành được',
-        'Tái hiện lại vấn đề mà không cần ghi log theo dõi'
-      ],
-      correct: 0,
-      exp: 'Nguyên lý chia để trị (Divide and Conquer) và kiểm thử cô lập từng module là phương pháp tiêu chuẩn được đề cập trong giáo trình.'
-    },
-    {
-      q: `Yếu tố then chốt nào quyết định hiệu suất vận hành theo phân tích trong tài liệu này?`,
-      options: [
-        'Tối ưu hóa cấu trúc dữ liệu và giảm thiểu độ phức tạp thuật toán',
-        'Liên tục nâng cấp phần cứng mà không cần đo lường tài nguyên',
-        'Giảm số lượng tài liệu hướng dẫn và lược bỏ quy trình ghi chú',
-        'Sử dụng các giải pháp phần mềm độc quyền thay vì mã nguồn mở'
-      ],
-      correct: 0,
-      exp: 'Tài liệu khẳng định cấu trúc dữ liệu phù hợp đóng góp tới 80% hiệu quả tiết kiệm chi phí tính toán và bộ nhớ.'
-    },
-    {
-      q: `Thuật ngữ hoặc mô hình nào sau đây gắn liền với nội dung chính của tài liệu?`,
-      options: [
-        'Mô hình phát triển tuần tự kết hợp vòng lặp phản hồi định kỳ',
-        'Mô hình phi cấu trúc không ràng buộc kiểm soát',
-        'Quy trình một chiều không có cơ chế hoàn tác',
-        'Mô hình sao chép trực tiếp không qua tinh chỉnh'
-      ],
-      correct: 0,
-      exp: 'Cơ chế lặp và phản hồi (Feedback loop) là cốt lõi để đảm bảo độ chính xác và chất lượng sau mỗi giai đoạn.'
-    },
-    {
-      q: `Khi gặp lỗi không mong muốn trong quá trình thực hiện, tài liệu khuyến cáo bước đầu tiên là gì?`,
-      options: [
-        'Xác định phạm vi ảnh hưởng và kiểm tra thông tin log chi tiết',
-        'Khởi động lại toàn bộ hệ thống ngay lập tức mà không sao lưu',
-        'Xóa bỏ toàn bộ dữ liệu cấu hình cũ',
-        'Tắt tính năng thông báo lỗi để tránh làm gián đoạn'
-      ],
-      correct: 0,
-      exp: 'Bảo toàn hiện trạng và đọc kỹ log lỗi là nguyên tắc số 1 giúp tránh làm mất thông tin chẩn đoán quan trọng.'
-    }
-  ];
-
-  for (let i = 0; i < count; i++) {
-    const item = sampleBank[i % sampleBank.length];
-    generatedQuestions.push({
-      id: `gen-q-${Date.now()}-${i + 1}`,
-      question: `[Câu ${i + 1}] ${item.q}`,
-      options: item.options,
-      correctAnswerIndex: item.correct,
-      explanation: item.exp
-    });
-  }
+  const cleanTitle = sanitizeAcademicTopic(fileName);
+  const questions = generateOfflineQuizFromText(cleanTitle, cleanTitle, count, difficulty);
 
   const newQuizSet: QuizSet = {
     id: `quiz-${Date.now()}`,
     title: `Luyện tập: ${cleanTitle}`,
-    description: `Bộ câu hỏi trắc nghiệm ${count} câu từ "${fileName}". Mức độ: ${
+    description: `Bộ câu hỏi trắc nghiệm ${count} câu ôn tập chuyên đề "${cleanTitle}". Mức độ: ${
       difficulty === 'easy' ? 'Dễ' : difficulty === 'medium' ? 'Trung bình' : 'Nâng cao'
     }.`,
     sourceDocumentName: fileName,
@@ -431,7 +394,7 @@ export const simulateAIGeneration = (
     createdAt: new Date().toISOString().split('T')[0],
     lastScore: null,
     category: 'Tài liệu tải lên',
-    questions: generatedQuestions
+    questions: questions,
   };
 
   saveQuizSet(newQuizSet);
@@ -443,7 +406,7 @@ export const simulateAIGeneration = (
     uploadedAt: new Date().toISOString().split('T')[0],
     pageCount: Math.max(12, count * 3),
     quizSetsGenerated: 1,
-    status: 'ready'
+    status: 'ready',
   };
   addDocument(newDoc);
 
@@ -452,12 +415,12 @@ export const simulateAIGeneration = (
     id: `deck-${Date.now()}`,
     title: `Flashcards: ${cleanTitle}`,
     sourceDocumentName: fileName,
-    cards: generatedQuestions.slice(0, Math.min(count, 5)).map((q, idx) => ({
-      id: `gen-fc-${Date.now()}-${idx}`,
-      front: q.question.replace(/^\[Câu \d+\] /, ''),
-      back: `${q.options[q.correctAnswerIndex]}\n\nGiải thích: ${q.explanation}`,
-      status: 'new'
-    }))
+    cards: questions.slice(0, Math.min(count, 5)).map((q, idx) => ({
+      id: `gen-fc-${Date.now()}-${idx + 1}`,
+      front: cleanTextFromFileName(q.question.replace(/^\[.*?\]\s*/, '')),
+      back: `Đáp án: ${q.options[q.correctAnswerIndex]}\n\n${cleanTextFromFileName(q.explanation)}`,
+      status: 'new' as const,
+    })),
   });
   localStorage.setItem(KEYS.FLASHCARDS, JSON.stringify(decks));
 
