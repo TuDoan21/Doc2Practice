@@ -22,20 +22,35 @@ export interface AccessDecision {
  * Bảng phân quyền vai trò cơ sở
  */
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  student: ['class:read', 'assignment:submit'],
+  student: [
+    'class:read',
+    'class:join',
+    'assignment:submit',
+    'subject:read',
+    'school:read',
+  ],
   teacher: [
     'class:create',
     'class:read',
     'class:update',
     'class:delete',
+    'class:review_requests',
     'assignment:create',
     'proctor:monitor',
+    'subject:read',
+    'school:read',
   ],
   school_admin: [
     'class:create',
     'class:read',
     'class:update',
+    'class:delete',
+    'class:assign_teacher',
+    'class:review_requests',
     'teacher:approve',
+    'subject:manage',
+    'subject:read',
+    'school:read',
     'audit:read',
   ],
   system_admin: [
@@ -43,11 +58,17 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'class:read',
     'class:update',
     'class:delete',
+    'class:assign_teacher',
+    'class:review_requests',
+    'class:join',
     'assignment:create',
     'assignment:submit',
     'proctor:monitor',
     'teacher:approve',
     'school:manage',
+    'school:read',
+    'subject:manage',
+    'subject:read',
     'audit:read',
   ],
 };
@@ -126,11 +147,21 @@ export const checkPermission = (
     }
   }
 
-  // 8. Quyền đặc thù của Giáo viên: Chỉ được sửa/xóa lớp hoặc giao bài trong lớp do mình quản lý
+  // 8. Quyền đặc thù của Giáo viên: Chỉ được sửa/xóa lớp, duyệt yêu cầu hoặc giao bài trong lớp do mình quản lý
   if (user.role === 'teacher') {
+    // Không thể tạo lớp cho trường khác
+    if (permission === 'class:create' && context?.targetSchoolId && user.schoolId && context.targetSchoolId !== user.schoolId) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Giáo viên chỉ được tạo lớp học thuộc trường mà mình đang công tác.',
+      };
+    }
+
     if (
       (permission === 'class:update' ||
         permission === 'class:delete' ||
+        permission === 'class:review_requests' ||
         permission === 'assignment:create' ||
         permission === 'proctor:monitor') &&
       context?.resourceTeacherId &&
@@ -139,12 +170,23 @@ export const checkPermission = (
       return {
         allowed: false,
         code: 'FORBIDDEN',
-        reason: 'Giáo viên chỉ có quyền quản lý và giao đề thi cho các lớp học do chính mình phụ trách.',
+        reason: 'Giáo viên chỉ có quyền quản lý, duyệt thành viên và giao đề thi cho các lớp học do chính mình phụ trách.',
       };
     }
   }
 
-  // 9. Quyền của Học sinh: Chỉ được xem lớp và làm bài tập của lớp mình đã tham gia
+  // 9. Quyền quản lý môn học: School Admin chỉ quản lý môn thuộc trường mình, không được sửa môn dùng chung toàn quốc (global)
+  if (permission === 'subject:manage' && user.role === 'school_admin') {
+    if (context?.resourceSchoolId && context.resourceSchoolId === 'global') {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Quản trị viên trường không có quyền thay đổi danh mục môn học dùng chung toàn hệ thống.',
+      };
+    }
+  }
+
+  // 10. Quyền của Học sinh: Chỉ được xem lớp và làm bài tập của lớp mình đã tham gia
   if (user.role === 'student' && permission === 'class:read') {
     if (
       context?.enrolledStudentIds &&
@@ -160,3 +202,4 @@ export const checkPermission = (
 
   return { allowed: true };
 };
+

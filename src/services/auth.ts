@@ -2,12 +2,12 @@ import type { UserRole, TeacherApprovalRequest } from '../types';
 import {
   validateSession,
   getSessions,
-  generateCryptoToken,
   logoutApi,
   updateProfileApi,
   approveTeacherApi,
   rejectTeacherApi,
 } from './authApi';
+import { generateCryptoToken } from './security';
 
 export interface UserProfile {
   id: string;

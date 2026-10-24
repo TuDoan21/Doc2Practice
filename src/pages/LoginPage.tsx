@@ -58,7 +58,7 @@ export const LoginPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginAlert(null);
 
@@ -66,19 +66,37 @@ export const LoginPage = () => {
 
     setIsLoading(true);
 
-    // Xác thực và lưu phiên đăng nhập
-    setTimeout(() => {
-      loginUser(email.trim());
-      setIsLoading(false);
-      setLoginAlert({
-        type: 'success',
-        message: 'Đăng nhập thành công! Đang chuyển hướng đến Cổng Trường Học...',
+    try {
+      const res = await loginApi({
+        email: email.trim(),
+        password,
       });
 
-      setTimeout(() => {
-        navigate('/app/dashboard');
-      }, 700);
-    }, 600);
+      setIsLoading(false);
+
+      if (res.success) {
+        setSessionToken(res.data.token);
+        setLoginAlert({
+          type: 'success',
+          message: 'Đăng nhập thành công! Đang chuyển hướng đến Cổng Trường Học...',
+        });
+
+        setTimeout(() => {
+          navigate('/app/dashboard');
+        }, 600);
+      } else {
+        setLoginAlert({
+          type: 'error',
+          message: res.error.message,
+        });
+      }
+    } catch {
+      setIsLoading(false);
+      setLoginAlert({
+        type: 'error',
+        message: 'Có lỗi xảy ra trong quá trình xác thực. Vui lòng thử lại.',
+      });
+    }
   };
 
   // Nhanh tài khoản mẫu
@@ -93,14 +111,13 @@ export const LoginPage = () => {
     }, 400);
   };
 
-  const handleForgotPasswordSubmit = (e: React.FormEvent) => {
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)) return;
 
     setForgotStatus('sending');
-    setTimeout(() => {
-      setForgotStatus('sent');
-    }, 1000);
+    await requestPasswordResetApi(forgotEmail.trim());
+    setForgotStatus('sent');
   };
 
   return (
@@ -386,12 +403,23 @@ export const LoginPage = () => {
                 Vui lòng kiểm tra hộp thư đến của <span className="font-semibold text-slate-800">{forgotEmail}</span> và làm theo hướng dẫn để đặt lại mật khẩu.
               </p>
             </div>
-            <button
-              onClick={() => setShowForgotModal(false)}
-              className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
-            >
-              Quay lại đăng nhập
-            </button>
+            <div className="pt-2 flex flex-col gap-2">
+              <Link
+                to="/forgot-password"
+                onClick={() => setShowForgotModal(false)}
+                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-xs"
+              >
+                <span>Chuyển tới Trang Đặt lại Mật khẩu</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(false)}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+              >
+                Quay lại đăng nhập
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">

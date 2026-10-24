@@ -84,11 +84,25 @@ export interface School {
   address: string;
   phone: string;
   email: string;
-  teacherCount: number;
-  studentCount: number;
-  classCount: number;
+  description?: string;
+  teacherCount?: number;
+  studentCount?: number;
+  classCount?: number;
   status: 'active' | 'pending' | 'suspended';
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Subject {
+  id: string;
+  schoolId?: string; // ID trường nếu là môn riêng, hoặc undefined/'global' nếu dùng chung toàn hệ thống
+  subjectCode: string;
+  name: string;
+  description?: string;
+  gradeLevel?: string; // Khối 10, Khối 11, Khối 12, Đại học...
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface TeacherApprovalRequest {
@@ -96,6 +110,7 @@ export interface TeacherApprovalRequest {
   fullName: string;
   email: string;
   schoolName: string;
+  schoolId?: string;
   department: string; // Tổ chuyên môn (VD: Toán - Tin, Ngữ Văn, Tiếng Anh...)
   teacherCode: string;
   proofDocumentName?: string;
@@ -118,20 +133,44 @@ export interface ClassMaterial {
 
 export interface Classroom {
   id: string;
-  code: string; // Mã tham gia 6 ký tự, ví dụ: "UIT-8821"
+  code: string; // Mã tham gia 6 ký tự, ví dụ: "WEB-8821"
   name: string;
   subject: string;
-  schoolId?: string; // ID trường quản lý lớp
+  subjectId?: string;
+  schoolId: string; // ID trường quản lý lớp
   grade?: string; // Khối 10, Khối 11, Khối 12, ĐH...
+  gradeLevel?: string;
   academicYear?: string; // 2026-2027
+  semester?: string; // Học kỳ 1, Học kỳ 2, Cả năm
+  status?: 'active' | 'archived'; // Hoạt động hoặc Lưu trữ/Đóng lớp
   teacherId: string;
   teacherName: string;
+  secondaryTeacherIds?: string[];
   description: string;
   studentCount: number;
   studentIds: string[];
+  joinCodeActive?: boolean; // Cho phép tham gia bằng mã
   documentCount?: number;
   materials?: ClassMaterial[];
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ClassJoinRequest {
+  id: string;
+  classId: string;
+  className: string;
+  classCode: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  studentCode?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectReason?: string;
 }
 
 export type AssignmentType = 'practice' | 'exam';
@@ -244,9 +283,24 @@ export interface AuditLog {
     | 'UNAUTHORIZED_ACCESS_BLOCKED'
     | 'ROLE_ESCALATION_BLOCKED'
     | 'CROSS_SCHOOL_ACCESS_BLOCKED'
+    | 'SCHOOL_CREATED'
+    | 'SCHOOL_UPDATED'
+    | 'SCHOOL_STATUS_CHANGED'
+    | 'SUBJECT_CREATED'
+    | 'SUBJECT_UPDATED'
+    | 'SUBJECT_STATUS_CHANGED'
     | 'CLASSROOM_CREATED'
+    | 'CLASSROOM_UPDATED'
+    | 'CLASS_ARCHIVED'
+    | 'CLASS_TEACHER_ASSIGNED'
+    | 'CLASS_JOIN_REQUESTED'
+    | 'CLASS_JOIN_APPROVED'
+    | 'CLASS_JOIN_REJECTED'
+    | 'CLASS_STUDENT_REMOVED'
+    | 'CLASS_STUDENT_LEFT'
+    | 'CLASS_CODE_REGENERATED'
     | 'ASSIGNMENT_CREATED';
-  targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'system';
+  targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'school' | 'subject' | 'join_request' | 'system';
   targetId?: string;
   schoolId?: string;
   details: string;
@@ -258,11 +312,17 @@ export type Permission =
   | 'class:read'
   | 'class:update'
   | 'class:delete'
+  | 'class:assign_teacher'
+  | 'class:review_requests'
+  | 'class:join'
   | 'assignment:create'
   | 'assignment:submit'
   | 'proctor:monitor'
   | 'teacher:approve'
   | 'school:manage'
+  | 'school:read'
+  | 'subject:manage'
+  | 'subject:read'
   | 'audit:read';
 
 export type ApiResult<T> =

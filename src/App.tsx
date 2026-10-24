@@ -15,6 +15,9 @@ import { DocumentsPage } from './pages/DocumentsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ClassroomsPage } from './pages/ClassroomsPage';
+import { SchoolsManagementPage } from './pages/SchoolsManagementPage';
+import { SubjectsManagementPage } from './pages/SubjectsManagementPage';
+import { SchoolAdminPage } from './pages/SchoolAdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -64,6 +67,9 @@ function App() {
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="classes" element={<ClassroomsPage />} />
+          <Route path="schools" element={<SchoolsManagementPage />} />
+          <Route path="subjects" element={<SubjectsManagementPage />} />
+          <Route path="school-admin" element={<SchoolAdminPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

@@ -1,6 +1,9 @@
 import type { UserRecord, Classroom } from '../types';
 import { generateSalt, hashPassword } from './security';
 import { recordAuditLog } from './auditService';
+import { initSchoolStorage } from './schoolService';
+import { initSubjectStorage } from './subjectService';
+import { initClassStorage } from './classService';
 
 export const SECURE_USERS_KEY = 'd2p_users_v5_secure';
 export const SESSIONS_KEY = 'd2p_sessions_v1';
@@ -34,6 +37,9 @@ export const runAuthMigrations = async (): Promise<{
   const existingSecureRaw = localStorage.getItem(SECURE_USERS_KEY);
 
   if (alreadyMigrated && existingSecureRaw) {
+    initSchoolStorage();
+    initSubjectStorage();
+    initClassStorage();
     const list: UserRecord[] = JSON.parse(existingSecureRaw);
     return {
       migrated: false,
@@ -41,6 +47,10 @@ export const runAuthMigrations = async (): Promise<{
       message: 'Hệ thống đã hoàn tất migration bảo mật trước đó.',
     };
   }
+
+  initSchoolStorage();
+  initSubjectStorage();
+  initClassStorage();
 
   // 1. Đọc dữ liệu người dùng cũ
   let oldUsers: any[] = [];
@@ -188,3 +198,4 @@ export const runAuthMigrations = async (): Promise<{
     message: `Migration hoàn tất: Đã bảo vệ an toàn ${secureUsers.length} tài khoản người dùng.`,
   };
 };
+

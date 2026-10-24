@@ -555,7 +555,7 @@ export const requestPasswordResetApi = async (
 
   return {
     success: true,
-    data: { token, expiresAt },
+    data: { resetToken: token, expiresAt },
     message: 'Nếu địa chỉ email tồn tại, liên kết khôi phục mật khẩu đã được tạo thành công.',
   };
 };

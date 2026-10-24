@@ -25,13 +25,30 @@ import {
   UploadCloud,
   FileText,
   FileSpreadsheet,
-  FolderOpen
+  FolderOpen,
+  UserCheck,
+  Archive,
+  Key,
+  Lock,
+  Unlock,
+  LogOut as LeaveIcon,
+  Search
 } from 'lucide-react';
 import { getCurrentUser, type UserProfile } from '../services/auth';
 import {
   getClassrooms,
   createClassroom,
-  joinClassroomByCode,
+  previewClassByCode,
+  requestJoinClassByCode,
+  getJoinRequests,
+  getStudentJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  regenerateClassCode,
+  toggleJoinCodeStatus,
+  removeStudentFromClass,
+  leaveClassroom,
+  archiveClassroom,
   getAssignmentsByClass,
   getAssignmentById,
   createAssignment,
@@ -41,8 +58,9 @@ import {
   getClassMaterials,
   addClassMaterial
 } from '../services/classService';
+import { getSubjects } from '../services/subjectService';
 import { getQuizSets } from '../services/storage';
-import type { Classroom, ClassAssignment, QuizSet, AssignmentType, StudentSubmission, ClassMaterial } from '../types';
+import type { Classroom, ClassAssignment, QuizSet, AssignmentType, StudentSubmission, ClassMaterial, ClassJoinRequest, Subject } from '../types';
 import { Modal } from '../components/common/Modal';
 
 export const ClassroomsPage = () => {
@@ -71,15 +89,31 @@ export const ClassroomsPage = () => {
   const [proctorFilter, setProctorFilter] = useState<'all' | 'taking' | 'submitted' | 'violation'>('all');
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentSubmission | null>(null);
 
-  // Modals
+  // Modals & Form States
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [newClassSubject, setNewClassSubject] = useState('');
+  const [newClassSubjectId, setNewClassSubjectId] = useState('');
+  const [newGradeLevel, setNewGradeLevel] = useState('Khối 12');
+  const [newAcademicYear, setNewAcademicYear] = useState('2026-2027');
+  const [newSemester, setNewSemester] = useState('Học kỳ 1');
   const [newClassDesc, setNewClassDesc] = useState('');
+  const [createClassError, setCreateClassError] = useState<string | null>(null);
 
+  // Filters & Data
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const [classSubjectFilter, setClassSubjectFilter] = useState('all');
+  const [classStatusFilter, setClassStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
+  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+
+  // Join Class & Request Workflow (Phần 5)
   const [isJoinClassOpen, setIsJoinClassOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+  const [joinPreviewData, setJoinPreviewData] = useState<any | null>(null);
   const [joinMessage, setJoinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [studentTab, setStudentTab] = useState<'classes' | 'requests'>('classes');
+  const [mySentRequests, setMySentRequests] = useState<ClassJoinRequest[]>([]);
+  const [classJoinRequests, setClassJoinRequests] = useState<ClassJoinRequest[]>([]);
 
   // Modal Giao bài tập cho giáo viên
   const [isCreateAssignmentOpen, setIsCreateAssignmentOpen] = useState(Boolean(assignQuizParam));
@@ -120,10 +154,19 @@ export const ClassroomsPage = () => {
   const refreshData = () => {
     const user = getCurrentUser();
     setCurrentUser(user);
-    const loadedClasses = getClassrooms();
+    const loadedClasses = getClassrooms({
+      search: classSearchQuery,
+      subjectId: classSubjectFilter === 'all' ? undefined : classSubjectFilter,
+      status: classStatusFilter === 'all' ? undefined : classStatusFilter,
+    });
     setClassrooms(loadedClasses);
     const loadedQuiz = getQuizSets();
     setAllQuizSets(loadedQuiz);
+
+    const subs = getSubjects({ schoolId: user?.schoolId });
+    setSubjectsList(subs);
+
+    setMySentRequests(getStudentJoinRequests());
 
     if (assignQuizParam && !asgQuizSetId) {
       setAsgQuizSetId(assignQuizParam);
@@ -132,8 +175,12 @@ export const ClassroomsPage = () => {
       setIsCreateAssignmentOpen(true);
     }
 
-    if (loadedClasses.length > 0 && !selectedClassId) {
+    if (loadedClasses.length > 0 && (!selectedClassId || !loadedClasses.some((c) => c.id === selectedClassId))) {
       setSelectedClassId(loadedClasses[0].id);
+    }
+
+    if (selectedClassId) {
+      setClassJoinRequests(getJoinRequests(selectedClassId));
     }
   };
 
@@ -159,6 +206,7 @@ export const ClassroomsPage = () => {
     window.addEventListener('classes_updated', handleUpdates);
     window.addEventListener('assignments_updated', handleUpdates);
     window.addEventListener('submissions_updated', handleUpdates);
+    window.addEventListener('join_requests_updated', handleUpdates);
     window.addEventListener('exam_tab_violation_detected', handleViolationDetected);
 
     return () => {
@@ -166,9 +214,10 @@ export const ClassroomsPage = () => {
       window.removeEventListener('classes_updated', handleUpdates);
       window.removeEventListener('assignments_updated', handleUpdates);
       window.removeEventListener('submissions_updated', handleUpdates);
+      window.removeEventListener('join_requests_updated', handleUpdates);
       window.removeEventListener('exam_tab_violation_detected', handleViolationDetected);
     };
-  }, [selectedClassId, monitorParam, assignQuizParam]);
+  }, [selectedClassId, monitorParam, assignQuizParam, classSearchQuery, classSubjectFilter, classStatusFilter]);
 
   // Copy mã lớp
   const handleCopyCode = (code: string) => {
@@ -177,43 +226,146 @@ export const ClassroomsPage = () => {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  // Tạo lớp học mới (Giáo viên)
+  // Tạo lớp học mới (Giáo viên / School Admin)
   const handleCreateClassSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateClassError(null);
     if (!newClassName.trim() || !newClassSubject.trim()) return;
 
-    const created = createClassroom({
+    const res = createClassroom({
       name: newClassName.trim(),
       subject: newClassSubject.trim(),
+      subjectId: newClassSubjectId || undefined,
       description: newClassDesc.trim() || 'Lớp học trực tuyến trên Doc2Practice.',
+      gradeLevel: newGradeLevel,
+      academicYear: newAcademicYear,
+      semester: newSemester,
     });
 
-    setIsCreateClassOpen(false);
-    setNewClassName('');
-    setNewClassSubject('');
-    setNewClassDesc('');
-    setSelectedClassId(created.id);
-    refreshData();
+    if (res.success) {
+      setIsCreateClassOpen(false);
+      setNewClassName('');
+      setNewClassSubject('');
+      setNewClassSubjectId('');
+      setNewClassDesc('');
+      setSelectedClassId(res.data.id);
+      setActionToast(`Đã tạo lớp "${res.data.name}" thành công!`);
+      refreshData();
+    } else {
+      setCreateClassError(res.error.message);
+    }
   };
 
-  // Tham gia lớp học bằng code (Học sinh)
-  const handleJoinClassSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Xem trước lớp học bằng mã (Học sinh - Bước 1)
+  const handlePreviewCode = () => {
     setJoinMessage(null);
+    setJoinPreviewData(null);
     if (!joinCode.trim()) return;
 
-    const res = joinClassroomByCode(joinCode.trim());
+    const res = previewClassByCode(joinCode.trim());
     if (res.success) {
-      setJoinMessage({ type: 'success', text: res.message });
+      setJoinPreviewData(res.data);
+    } else {
+      setJoinMessage({ type: 'error', text: res.error.message });
+    }
+  };
+
+  // Xác nhận gửi yêu cầu tham gia lớp (Học sinh - Bước 2)
+  const handleConfirmJoinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim()) return;
+
+    const res = requestJoinClassByCode(joinCode.trim());
+    if (res.success) {
+      setJoinMessage({ type: 'success', text: res.message || 'Yêu cầu tham gia đã được gửi!' });
       setTimeout(() => {
         setIsJoinClassOpen(false);
         setJoinCode('');
+        setJoinPreviewData(null);
         setJoinMessage(null);
-        if (res.classroom) setSelectedClassId(res.classroom.id);
         refreshData();
-      }, 1000);
+      }, 1500);
     } else {
-      setJoinMessage({ type: 'error', text: res.message });
+      setJoinMessage({ type: 'error', text: res.error.message });
+    }
+  };
+
+  // Duyệt yêu cầu vào lớp (Giáo viên / School Admin)
+  const handleApproveRequest = (requestId: string) => {
+    const res = approveJoinRequest(requestId);
+    if (res.success) {
+      setActionToast('Đã chấp nhận học sinh vào lớp!');
+      refreshData();
+    } else {
+      alert(res.error.message);
+    }
+  };
+
+  // Từ chối yêu cầu vào lớp
+  const handleRejectRequest = (requestId: string) => {
+    const reason = prompt('Nhập lý do từ chối (nếu có):', 'Thông tin học sinh không thuộc danh sách lớp');
+    if (reason === null) return;
+    const res = rejectJoinRequest(requestId, reason);
+    if (res.success) {
+      setActionToast('Đã từ chối yêu cầu vào lớp.');
+      refreshData();
+    } else {
+      alert(res.error.message);
+    }
+  };
+
+  // Cấp lại mã mời mới khi mã cũ bị lộ
+  const handleRegenerateCode = (classId: string) => {
+    if (!window.confirm('Bạn có chắc muốn tạo lại mã mời mới? Mã cũ sẽ không còn hiệu lực.')) return;
+    const res = regenerateClassCode(classId);
+    if (res.success) {
+      setActionToast(`Mã mời mới: ${res.data}`);
+      refreshData();
+    }
+  };
+
+  // Bật/tắt nhận học sinh bằng mã
+  const handleToggleCodeStatus = (cls: Classroom) => {
+    const nextStatus = cls.joinCodeActive === false ? true : false;
+    const res = toggleJoinCodeStatus(cls.id, nextStatus);
+    if (res.success) {
+      setActionToast(res.message || 'Cập nhật trạng thái mã thành công.');
+      refreshData();
+    }
+  };
+
+  // Đóng/lưu trữ lớp học
+  const handleArchiveClass = (cls: Classroom) => {
+    const isArchived = cls.status === 'archived';
+    const confirmMsg = isArchived
+      ? `Mở lại lớp học "${cls.name}"?`
+      : `Đóng/Lưu trữ lớp "${cls.name}"? Lớp lưu trữ sẽ không nhận thêm học sinh mới.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const res = archiveClassroom(cls.id, !isArchived);
+    if (res.success) {
+      setActionToast(res.message || 'Cập nhật trạng thái lớp thành công.');
+      refreshData();
+    }
+  };
+
+  // Xóa học sinh khỏi lớp (Giáo viên)
+  const handleRemoveStudent = (clsId: string, stdId: string, stdName: string) => {
+    if (!window.confirm(`Xóa học sinh "${stdName}" khỏi danh sách lớp?`)) return;
+    const res = removeStudentFromClass(clsId, stdId);
+    if (res.success) {
+      setActionToast('Đã xóa học sinh khỏi danh sách lớp.');
+      refreshData();
+    }
+  };
+
+  // Học sinh rời lớp
+  const handleLeaveClass = (clsId: string, clsName: string) => {
+    if (!window.confirm(`Bạn có chắc muốn rời khỏi lớp "${clsName}"?`)) return;
+    const res = leaveClassroom(clsId);
+    if (res.success) {
+      setActionToast(`Đã rời khỏi lớp "${clsName}".`);
+      refreshData();
     }
   };
 
@@ -248,7 +400,7 @@ export const ClassroomsPage = () => {
   const submissions = selectedClass ? getSubmissionsByClass(selectedClass.id) : [];
   const materials = selectedClass ? getClassMaterials(selectedClass.id) : [];
 
-  const [activeTab, setActiveTab] = useState<'assignments' | 'materials' | 'members' | 'gradebook'>('assignments');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'materials' | 'members' | 'requests' | 'settings' | 'gradebook'>('assignments');
   const [isUploadMaterialOpen, setIsUploadMaterialOpen] = useState(false);
   const [matTitle, setMatTitle] = useState('');
   const [matFileName, setMatFileName] = useState('');
@@ -632,11 +784,11 @@ export const ClassroomsPage = () => {
       ) : (
         /* ================= STANDARD CLASSROOM LIST & ASSIGNMENTS VIEW ================= */
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Classrooms List */}
+        {/* Left Column: Classrooms List & Student Join Requests */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-              {isTeacher ? 'Lớp học bạn phụ trách' : 'Lớp học đã tham gia'} ({classrooms.length})
+              {isTeacher ? 'Lớp học bạn phụ trách' : 'Lớp học'} ({classrooms.length})
             </h2>
 
             {isTeacher ? (
@@ -651,81 +803,210 @@ export const ClassroomsPage = () => {
             ) : (
               <button
                 type="button"
-                onClick={() => setIsJoinClassOpen(true)}
+                onClick={() => {
+                  setJoinPreviewData(null);
+                  setJoinMessage(null);
+                  setJoinCode('');
+                  setIsJoinClassOpen(true);
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-102"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                <span>Vào lớp (Mã PIN)</span>
+                <span>Vào lớp bằng mã</span>
               </button>
             )}
           </div>
 
-          {classrooms.length > 0 ? (
-            <div className="space-y-3">
-              {classrooms.map((cls) => {
-                const isSelected = cls.id === selectedClassId;
-                return (
-                  <div
-                    key={cls.id}
-                    onClick={() => setSelectedClassId(cls.id)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer text-left space-y-2.5 ${
-                      isSelected
-                        ? 'border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-600 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md">
-                        {cls.subject}
-                      </span>
-                      {/* Class Code */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyCode(cls.code);
-                        }}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                        title="Sao chép mã lớp để gửi cho học sinh"
-                      >
-                        {copiedCode === cls.code ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span className="text-emerald-600">Đã chép</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3 text-slate-500" />
-                            <span>Mã: {cls.code}</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+          {/* Student Toggle Sub-tab: Lớp của tôi vs Yêu cầu đã gửi */}
+          {!isTeacher && (
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setStudentTab('classes')}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  studentTab === 'classes' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                }`}
+              >
+                Lớp đã tham gia ({classrooms.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentTab('requests')}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  studentTab === 'requests' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                }`}
+              >
+                Yêu cầu đã gửi ({mySentRequests.length})
+              </button>
+            </div>
+          )}
 
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-1">
-                        {cls.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                        {cls.description}
-                      </p>
-                    </div>
+          {/* Search & Subject / Status Filters */}
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={classSearchQuery}
+                onChange={(e) => setClassSearchQuery(e.target.value)}
+                placeholder="Tìm theo tên lớp, mã lớp..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        <span>{cls.studentCount} học sinh</span>
-                      </span>
-                      <span>GV: {cls.teacherName.split(' ').slice(-2).join(' ')}</span>
-                    </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={classSubjectFilter}
+                onChange={(e) => setClassSubjectFilter(e.target.value)}
+                className="text-[11px] font-medium py-1.5 px-2 bg-white border border-slate-200 rounded-xl text-slate-700 truncate"
+              >
+                <option value="all">Tất cả môn</option>
+                {subjectsList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={classStatusFilter}
+                onChange={(e) => setClassStatusFilter(e.target.value as any)}
+                className="text-[11px] font-medium py-1.5 px-2 bg-white border border-slate-200 rounded-xl text-slate-700"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="active">Đang mở</option>
+                <option value="archived">Đã lưu trữ</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Render Sent Requests Tab for Student */}
+          {!isTeacher && studentTab === 'requests' ? (
+            <div className="space-y-2.5 animate-fadeIn">
+              {mySentRequests.map((req) => (
+                <div key={req.id} className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                      {req.classCode}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        req.status === 'approved'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : req.status === 'rejected'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {req.status === 'approved'
+                        ? 'Đã chấp nhận'
+                        : req.status === 'rejected'
+                        ? 'Bị từ chối'
+                        : 'Đang chờ giáo viên duyệt'}
+                    </span>
                   </div>
-                );
-              })}
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-xs">{req.className}</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Gửi lúc: {req.requestedAt}</p>
+                  </div>
+                  {req.rejectReason && (
+                    <p className="text-[11px] text-rose-600 italic bg-rose-50 p-2 rounded-lg">
+                      Lý do từ chối: {req.rejectReason}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {mySentRequests.length === 0 && (
+                <div className="p-6 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                  Bạn chưa gửi yêu cầu tham gia lớp nào.
+                </div>
+              )}
             </div>
           ) : (
-            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 text-xs">
-              Chưa có lớp học nào. Hãy bấm tạo lớp hoặc nhập mã để bắt đầu.
-            </div>
+            /* Render Classrooms List */
+            classrooms.length > 0 ? (
+              <div className="space-y-3">
+                {classrooms.map((cls) => {
+                  const isSelected = cls.id === selectedClassId;
+                  const isArchived = cls.status === 'archived';
+
+                  return (
+                    <div
+                      key={cls.id}
+                      onClick={() => setSelectedClassId(cls.id)}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer text-left space-y-2.5 ${
+                        isSelected
+                          ? 'border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-600 shadow-sm'
+                          : isArchived
+                          ? 'border-slate-200 bg-slate-50/70 opacity-70'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md truncate max-w-[120px]">
+                            {cls.subject}
+                          </span>
+                          {isArchived && (
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">
+                              Lưu trữ
+                            </span>
+                          )}
+                          {cls.joinCodeActive === false && (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                              Khóa mã
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Class Code */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyCode(cls.code);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                          title="Sao chép mã lớp để gửi cho học sinh"
+                        >
+                          {copiedCode === cls.code ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span className="text-emerald-600">Đã chép</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 text-slate-500" />
+                              <span>{cls.code}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-1">
+                          {cls.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                          {cls.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          <span>{cls.studentCount} học sinh</span>
+                        </span>
+                        <span>GV: {cls.teacherName.split(' ').slice(-2).join(' ')}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                Không tìm thấy lớp học nào phù hợp với bộ lọc.
+              </div>
+            )
           )}
 
           {/* Student Independent Study Card */}
@@ -749,16 +1030,19 @@ export const ClassroomsPage = () => {
           )}
         </div>
 
-        {/* Right Column: Classroom Detail (Assignments & Submissions) */}
+        {/* Right Column: Classroom Detail (Assignments, Materials, Members, Requests) */}
         <div className="lg:col-span-2 space-y-5">
           {selectedClass ? (
             <div className="space-y-5">
-              {/* Classroom Banner */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-slate-900 text-white">
+              {/* Classroom Banner & Controls */}
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-slate-900 text-white">
                       Mã PIN: {selectedClass.code}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-600">
+                      {selectedClass.gradeLevel || 'Khối 12'} • {selectedClass.academicYear || '2026-2027'}
                     </span>
                     <span className="text-xs text-slate-400">• Giáo viên: {selectedClass.teacherName}</span>
                   </div>
@@ -770,22 +1054,71 @@ export const ClassroomsPage = () => {
                   </p>
                 </div>
 
-                {isTeacher && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (allQuizSets.length > 0) setAsgQuizSetId(allQuizSets[0].id);
-                      setIsCreateAssignmentOpen(true);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-102 shrink-0 self-start sm:self-auto"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>Giao bài tập / Bài thi</span>
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
+                  {isTeacher ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRegenerateCode(selectedClass.id)}
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                        title="Tạo lại mã mời mới khi mã cũ bị lộ"
+                      >
+                        <Key className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCodeStatus(selectedClass)}
+                        className={`p-2 rounded-xl text-xs font-bold transition-all ${
+                          selectedClass.joinCodeActive === false
+                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                        title={selectedClass.joinCodeActive === false ? 'Mở lại mã mời' : 'Tạm khóa nhận học sinh bằng mã'}
+                      >
+                        {selectedClass.joinCodeActive === false ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveClass(selectedClass)}
+                        className={`p-2 rounded-xl text-xs font-bold transition-all ${
+                          selectedClass.status === 'archived'
+                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                        title={selectedClass.status === 'archived' ? 'Mở lại lớp học' : 'Lưu trữ/Đóng lớp học'}
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (allQuizSets.length > 0) setAsgQuizSetId(allQuizSets[0].id);
+                          setIsCreateAssignmentOpen(true);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-102"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>Giao bài tập</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleLeaveClass(selectedClass.id, selectedClass.name)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all"
+                      title="Rời khỏi lớp học này"
+                    >
+                      <LeaveIcon className="w-3.5 h-3.5" />
+                      <span>Rời lớp</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Classroom Hub 4-Tab Navigation */}
+              {/* Classroom Hub Navigation Tabs */}
               <div className="flex items-center gap-2 border-b border-slate-200 pb-1 overflow-x-auto text-xs font-bold scrollbar-none">
                 <button
                   type="button"
@@ -840,6 +1173,28 @@ export const ClassroomsPage = () => {
                     {selectedClass.studentCount}
                   </span>
                 </button>
+
+                {isTeacher && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('requests')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                      activeTab === 'requests'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Duyệt vào lớp</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      classJoinRequests.filter((r) => r.status === 'pending').length > 0
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {classJoinRequests.filter((r) => r.status === 'pending').length}
+                    </span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1106,6 +1461,7 @@ export const ClassroomsPage = () => {
                             <th className="py-2.5 px-3">Email trường học</th>
                             <th className="py-2.5 px-3">Ngày tham gia</th>
                             <th className="py-2.5 px-3 text-right">Kỷ luật thi cử</th>
+                            {isTeacher && <th className="py-2.5 px-3 text-right">Quản trị</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -1120,6 +1476,17 @@ export const ClassroomsPage = () => {
                                 <span>Gương mẫu (0 vi phạm)</span>
                               </span>
                             </td>
+                            {isTeacher && (
+                              <td className="py-3 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveStudent(selectedClass.id, 'usr-student-01', 'Nguyễn Văn Học')}
+                                  className="text-rose-600 hover:text-rose-800 text-[11px] font-bold"
+                                >
+                                  Xóa
+                                </button>
+                              </td>
+                            )}
                           </tr>
                           <tr className="hover:bg-slate-50">
                             <td className="py-3 px-3 font-mono font-bold text-slate-600">HS-2026-0815</td>
@@ -1160,6 +1527,81 @@ export const ClassroomsPage = () => {
                       </table>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ================= TAB: JOIN REQUESTS (DUYỆT VÀO LỚP) ================= */}
+              {activeTab === 'requests' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-indigo-600" />
+                        <span>Danh sách yêu cầu xin vào lớp ({classJoinRequests.length})</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Phê duyệt hoặc từ chối học sinh tham gia lớp học phần
+                      </p>
+                    </div>
+                  </div>
+
+                  {classJoinRequests.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {classJoinRequests.map((req) => {
+                        const isPending = req.status === 'pending';
+
+                        return (
+                          <div key={req.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-slate-900 text-sm">{req.studentName}</h4>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  req.status === 'approved'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : req.status === 'rejected'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {req.status === 'approved' ? 'Đã duyệt' : req.status === 'rejected' ? 'Đã từ chối' : 'Chờ phê duyệt'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 flex items-center gap-2">
+                                <span>{req.studentEmail}</span>
+                                {req.studentCode && <span>• Mã HS: {req.studentCode}</span>}
+                                <span>• Gửi: {req.requestedAt}</span>
+                              </p>
+                              {req.rejectReason && (
+                                <p className="text-[11px] text-rose-600 italic">Lý do: {req.rejectReason}</p>
+                              )}
+                            </div>
+
+                            {isPending && (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectRequest(req.id)}
+                                  className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-all"
+                                >
+                                  Từ chối
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveRequest(req.id)}
+                                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
+                                >
+                                  Chấp thuận
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      Hiện không có yêu cầu xin vào lớp nào đang chờ duyệt.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1352,46 +1794,116 @@ export const ClassroomsPage = () => {
         )}
       </Modal>
 
-      {/* Modal: Tạo lớp học mới (Giáo viên) */}
+      {/* Modal: Tạo lớp học mới (Giáo viên / School Admin) */}
       <Modal isOpen={isCreateClassOpen} onClose={() => setIsCreateClassOpen(false)} title="Tạo Lớp Học Mới" maxWidth="md">
         <form onSubmit={handleCreateClassSubmit} className="space-y-4">
+          {createClassError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{createClassError}</span>
+            </div>
+          )}
+
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Tên lớp học</label>
+            <label className="text-xs font-bold text-slate-700 block">Tên lớp học *</label>
             <input
               type="text"
               required
               value={newClassName}
               onChange={(e) => setNewClassName(e.target.value)}
-              placeholder="VD: Lập trình Web & React TypeScript (SE104.P12)"
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              placeholder="VD: Lập trình Web & TypeScript (SE104.P12)"
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Môn học / Chuyên ngành</label>
-            <input
-              type="text"
-              required
-              value={newClassSubject}
-              onChange={(e) => setNewClassSubject(e.target.value)}
-              placeholder="VD: Công nghệ phần mềm / Khoa học máy tính"
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 block">Môn học *</label>
+              <select
+                value={newClassSubjectId}
+                onChange={(e) => {
+                  const sId = e.target.value;
+                  setNewClassSubjectId(sId);
+                  const found = subjectsList.find((s) => s.id === sId);
+                  if (found) setNewClassSubject(found.name);
+                }}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+              >
+                <option value="">-- Chọn danh mục môn học --</option>
+                {subjectsList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.subjectCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 block">Tên môn hiển thị</label>
+              <input
+                type="text"
+                required
+                value={newClassSubject}
+                onChange={(e) => setNewClassSubject(e.target.value)}
+                placeholder="VD: Công nghệ phần mềm"
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 block">Khối lớp</label>
+              <select
+                value={newGradeLevel}
+                onChange={(e) => setNewGradeLevel(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+              >
+                <option value="Khối 10">Khối 10</option>
+                <option value="Khối 11">Khối 11</option>
+                <option value="Khối 12">Khối 12</option>
+                <option value="Đại học">Đại học</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 block">Năm học</label>
+              <input
+                type="text"
+                value={newAcademicYear}
+                onChange={(e) => setNewAcademicYear(e.target.value)}
+                placeholder="2026-2027"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 block">Học kỳ</label>
+              <select
+                value={newSemester}
+                onChange={(e) => setNewSemester(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+              >
+                <option value="Học kỳ 1">Học kỳ 1</option>
+                <option value="Học kỳ 2">Học kỳ 2</option>
+                <option value="Cả năm">Cả năm</option>
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Mô tả ngắn cho lớp</label>
+            <label className="text-xs font-bold text-slate-700 block">Mô tả lớp học</label>
             <textarea
               rows={3}
               value={newClassDesc}
               onChange={(e) => setNewClassDesc(e.target.value)}
               placeholder="Mục tiêu của lớp học, tài liệu cần chuẩn bị..."
-              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
             />
           </div>
 
           <p className="text-[11px] text-slate-500 italic">
-            * Sau khi tạo, hệ thống sẽ tự động cấp một mã PIN 6 ký tự để bạn gửi cho học sinh tham gia.
+            * Sau khi tạo, hệ thống sẽ cấp mã tham gia duy nhất và hỗ trợ quy trình học sinh gửi yêu cầu duyệt vào lớp.
           </p>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -1412,48 +1924,107 @@ export const ClassroomsPage = () => {
         </form>
       </Modal>
 
-      {/* Modal: Tham gia lớp bằng mã PIN (Học sinh) */}
-      <Modal isOpen={isJoinClassOpen} onClose={() => setIsJoinClassOpen(false)} title="Tham Gia Lớp Học Bằng Mã" maxWidth="md">
-        <form onSubmit={handleJoinClassSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Nhập mã lớp do giáo viên cung cấp</label>
-            <input
-              type="text"
-              required
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="VD: WEB-8821 hoặc AI-2026"
-              className="w-full px-4 py-3 text-sm font-mono font-bold tracking-wider text-center uppercase bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
-            <p className="text-[11px] text-slate-400 mt-1">
-              Mã lớp học gồm các chữ cái và số ngăn cách bởi dấu gạch nối (VD: WEB-8821).
+      {/* Modal: Tham gia lớp bằng mã PIN & Xem trước (Học sinh - Phần 5) */}
+      <Modal
+        isOpen={isJoinClassOpen}
+        onClose={() => {
+          setIsJoinClassOpen(false);
+          setJoinPreviewData(null);
+          setJoinMessage(null);
+        }}
+        title="Tham Gia Lớp Học Bằng Mã Mời"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 block">
+              1. Nhập mã lớp do giáo viên cung cấp:
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={joinCode}
+                onChange={(e) => {
+                  setJoinCode(e.target.value.toUpperCase());
+                  setJoinPreviewData(null);
+                  setJoinMessage(null);
+                }}
+                placeholder="VD: WEB-8821 hoặc AI-2026"
+                className="flex-1 px-4 py-2.5 text-sm font-mono font-bold tracking-wider uppercase bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <button
+                type="button"
+                onClick={handlePreviewCode}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shrink-0"
+              >
+                Kiểm tra mã
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Nhập chính xác ký tự và dấu gạch nối (VD: WEB-8821). Hệ thống có cơ chế giới hạn lần thử để bảo mật.
             </p>
           </div>
 
           {joinMessage && (
-            <div className={`p-3 rounded-xl text-xs font-semibold ${
-              joinMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'
+            <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              joinMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
             }`}>
-              {joinMessage.text}
+              {joinMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />}
+              <span>{joinMessage.text}</span>
+            </div>
+          )}
+
+          {/* Preview Card */}
+          {joinPreviewData && (
+            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-indigo-600 text-white">
+                  Mã: {joinPreviewData.code}
+                </span>
+                <span className="text-xs font-semibold text-indigo-900">
+                  {joinPreviewData.gradeLevel || 'Khối 12'} • {joinPreviewData.academicYear || '2026-2027'}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="font-extrabold text-slate-900 text-base">{joinPreviewData.name}</h4>
+                <p className="text-xs text-indigo-800 font-medium mt-0.5">{joinPreviewData.subject}</p>
+                <p className="text-xs text-slate-600 mt-1">{joinPreviewData.description}</p>
+              </div>
+
+              <div className="pt-2 border-t border-indigo-200/60 flex items-center justify-between text-xs text-slate-600 font-medium">
+                <span>👨‍🏫 Giáo viên: <strong>{joinPreviewData.teacherName}</strong></span>
+                <span>👥 Sĩ số hiện tại: <strong>{joinPreviewData.studentCount} em</strong></span>
+              </div>
             </div>
           )}
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsJoinClassOpen(false)}
+              onClick={() => {
+                setIsJoinClassOpen(false);
+                setJoinPreviewData(null);
+                setJoinMessage(null);
+              }}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
             >
-              Đóng
+              Hủy
             </button>
             <button
-              type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs"
+              type="button"
+              disabled={!joinPreviewData}
+              onClick={handleConfirmJoinSubmit}
+              className={`px-5 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs transition-all ${
+                joinPreviewData
+                  ? 'bg-indigo-600 hover:bg-indigo-700 hover:scale-102'
+                  : 'bg-slate-300 cursor-not-allowed'
+              }`}
             >
-              Tham gia ngay
+              Xác nhận gửi yêu cầu vào lớp
             </button>
           </div>
-        </form>
+        </div>
       </Modal>
 
       {/* Modal: Giao bài tập / bài kiểm tra mới (Giáo viên) */}

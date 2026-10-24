@@ -12,7 +12,8 @@ import {
   ExternalLink,
   LogOut,
   AlertTriangle,
-  Users
+  Users,
+  School
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { getCurrentUser, type UserProfile } from '../../services/auth';
@@ -47,22 +48,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
 
   const roleInfo = getRoleLabel();
 
-  const getClassNavLabel = () => {
-    if (currentUser.role === 'teacher') return 'Quản lý Lớp học';
-    if (currentUser.role === 'school_admin') return 'Lớp học & Phân công';
-    if (currentUser.role === 'system_admin') return 'Toàn bộ Lớp học';
-    return 'Lớp học của tôi';
+  const getNavItems = () => {
+    const items = [
+      { label: 'Tổng quan', path: '/app/dashboard', icon: LayoutDashboard },
+    ];
+
+    if (currentUser.role === 'system_admin') {
+      items.push({ label: 'Quản lý Trường học', path: '/app/schools', icon: School });
+      items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
+      items.push({ label: 'Toàn bộ Lớp học', path: '/app/classes', icon: Users });
+    } else if (currentUser.role === 'school_admin') {
+      items.push({ label: 'Trường & Nhân sự', path: '/app/school-admin', icon: School });
+      items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
+      items.push({ label: 'Lớp học & Phân công', path: '/app/classes', icon: Users });
+    } else if (currentUser.role === 'teacher') {
+      items.push({ label: 'Quản lý Lớp học', path: '/app/classes', icon: Users });
+    } else {
+      items.push({ label: 'Lớp học của tôi', path: '/app/classes', icon: Users });
+    }
+
+    items.push(
+      { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
+      { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
+      { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
+      { label: 'Lịch sử luyện tập', path: '/app/history', icon: History },
+      { label: 'Cài đặt', path: '/app/settings', icon: Settings }
+    );
+
+    return items;
   };
 
-  const navItems = [
-    { label: 'Tổng quan', path: '/app/dashboard', icon: LayoutDashboard },
-    { label: getClassNavLabel(), path: '/app/classes', icon: Users },
-    { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
-    { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
-    { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
-    { label: 'Lịch sử luyện tập', path: '/app/history', icon: History },
-    { label: 'Cài đặt', path: '/app/settings', icon: Settings },
-  ];
+  const navItems = getNavItems();
 
   const handleLogout = () => {
     setShowLogoutModal(false);

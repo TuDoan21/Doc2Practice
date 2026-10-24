@@ -17,7 +17,8 @@ import {
   Upload
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
-import { registerStudent, submitTeacherApprovalRequest, loginAsDemoRole } from '../services/auth';
+import { loginAsDemoRole } from '../services/auth';
+import { registerStudentApi, registerTeacherApi } from '../services/authApi';
 import { mockSchools } from '../data/mockData';
 import type { TeacherApprovalRequest } from '../types';
 
@@ -132,7 +133,7 @@ export const RegisterPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterAlert(null);
 
@@ -140,39 +141,62 @@ export const RegisterPage = () => {
 
     setIsLoading(true);
 
-    if (role === 'student') {
-      // Học sinh được kích hoạt ngay lập tức
-      setTimeout(() => {
-        registerStudent({
+    try {
+      if (role === 'student') {
+        const res = await registerStudentApi({
           fullName: fullName.trim(),
           email: email.trim(),
+          password,
           school: school.trim(),
           studentCode: studentCode.trim() || undefined,
         });
-        setIsLoading(false);
-        setRegisterAlert({
-          type: 'success',
-          message: 'Đăng ký tài khoản học sinh thành công! Đang chuyển đến không gian học tập...',
-        });
 
-        setTimeout(() => {
-          navigate('/app/dashboard');
-        }, 800);
-      }, 600);
-    } else {
-      // Giáo viên: Tạo hồ sơ chờ duyệt (Pending Verification)
-      setTimeout(() => {
-        const req = submitTeacherApprovalRequest({
+        setIsLoading(false);
+
+        if (res.success) {
+          setRegisterAlert({
+            type: 'success',
+            message: 'Đăng ký tài khoản học sinh thành công! Đang chuyển đến không gian học tập...',
+          });
+
+          setTimeout(() => {
+            loginAsDemoRole('student');
+            navigate('/app/dashboard');
+          }, 800);
+        } else {
+          setRegisterAlert({
+            type: 'error',
+            message: res.error.message,
+          });
+        }
+      } else {
+        const res = await registerTeacherApi({
           fullName: fullName.trim(),
           email: email.trim(),
+          password,
           schoolName: school.trim(),
           department: department.trim(),
           teacherCode: teacherCode.trim(),
           proofDocumentName: proofFileName || 'Minh_chung_su_pham.pdf',
         });
+
         setIsLoading(false);
-        setTeacherPendingRequest(req);
-      }, 700);
+
+        if (res.success) {
+          setTeacherPendingRequest(res.data.request);
+        } else {
+          setRegisterAlert({
+            type: 'error',
+            message: res.error.message,
+          });
+        }
+      }
+    } catch {
+      setIsLoading(false);
+      setRegisterAlert({
+        type: 'error',
+        message: 'Có lỗi xảy ra trong quá trình đăng ký. Vui lòng thử lại.',
+      });
     }
   };
 
