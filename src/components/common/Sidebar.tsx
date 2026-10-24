@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,12 +9,13 @@ import {
   Settings,
   PlusCircle,
   BookOpen,
-  Sparkles,
   ExternalLink,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 import { Modal } from './Modal';
+import { getCurrentUser, type UserProfile } from '../../services/auth';
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -23,9 +24,17 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
+
+  useEffect(() => {
+    const handleAuth = () => setCurrentUser(getCurrentUser());
+    window.addEventListener('auth_state_changed', handleAuth);
+    return () => window.removeEventListener('auth_state_changed', handleAuth);
+  }, []);
 
   const navItems = [
     { label: 'Tổng quan', path: '/app/dashboard', icon: LayoutDashboard },
+    { label: currentUser.role === 'teacher' ? 'Quản lý Lớp học' : 'Lớp học của tôi', path: '/app/classes', icon: Users },
     { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
     { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
     { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
@@ -94,13 +103,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
 
       {/* Bottom Info / Hint & Logout */}
       <div className="p-4 border-t border-slate-100 space-y-3">
-        <div className="p-3 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-xl border border-indigo-100/60 text-xs">
-          <div className="flex items-center gap-1.5 font-semibold text-indigo-900 mb-1">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Demo Mode</span>
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-800">Vai trò:</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+              currentUser.role === 'teacher' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
+            }`}>
+              {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
+            </span>
           </div>
-          <p className="text-indigo-700/80 leading-relaxed text-[11px]">
-            Hệ thống đang hoạt động với dữ liệu mô phỏng. Sẵn sàng kết nối Gemini AI & Supabase.
+          <p className="text-slate-500 text-[11px] leading-relaxed">
+            {currentUser.role === 'teacher'
+              ? 'Có quyền tạo lớp, giao bài kiểm tra khóa tab và xem điểm học sinh.'
+              : 'Tham gia lớp của giáo viên và tự tải tài liệu để ôn tập.'}
           </p>
         </div>
 

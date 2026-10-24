@@ -9,12 +9,17 @@ import {
   Settings,
   ChevronDown,
   AlertTriangle,
-  Timer
+  Timer,
+  GraduationCap,
+  Users,
+  ShieldAlert
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Modal } from './Modal';
 import { PomodoroModal } from './PomodoroModal';
-import { getCurrentUser, logoutUser, type UserProfile } from '../../services/auth';
+import { getCurrentUser, logoutUser, switchUserRole, type UserProfile } from '../../services/auth';
+import { getNotifications, markAllNotificationsAsRead } from '../../services/classService';
+import type { AppNotification } from '../../types';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -27,19 +32,30 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const [showPomodoro, setShowPomodoro] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => getNotifications(currentUser.role));
   const navigate = useNavigate();
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  // Lắng nghe thay đổi tài khoản
+  // Lắng nghe thay đổi tài khoản & thông báo
   useEffect(() => {
     const handleAuthChange = () => {
-      setCurrentUser(getCurrentUser());
+      const user = getCurrentUser();
+      setCurrentUser(user);
+      setNotifications(getNotifications(user.role));
     };
+    const handleNotifs = () => {
+      setNotifications(getNotifications(currentUser.role));
+    };
+
     window.addEventListener('auth_state_changed', handleAuthChange);
-    return () => window.removeEventListener('auth_state_changed', handleAuthChange);
-  }, []);
+    window.addEventListener('notifications_updated', handleNotifs);
+    return () => {
+      window.removeEventListener('auth_state_changed', handleAuthChange);
+      window.removeEventListener('notifications_updated', handleNotifs);
+    };
+  }, [currentUser.role]);
 
   // Đóng dropdown khi click bên ngoài
   useEffect(() => {
@@ -121,38 +137,73 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
             aria-label="Thông báo"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+            {notifications.some((n) => !n.read) && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+            )}
           </button>
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="font-bold text-sm text-slate-900">Thông báo mới</span>
-                <span className="text-xs text-indigo-600 font-semibold cursor-pointer">Đánh dấu đã đọc</span>
+                <span className="font-bold text-sm text-slate-900">
+                  Thông báo {currentUser.role === 'teacher' ? '(Giáo viên)' : '(Học sinh)'}
+                </span>
+                <button
+                  type="button"
+                  onClick={markAllNotificationsAsRead}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+                >
+                  Đánh dấu đã đọc
+                </button>
               </div>
-              <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-2">
-                <div className="py-2.5 flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-slate-800">Hoàn thành bài luyện tập!</p>
-                    <p className="text-slate-500 mt-0.5">Bạn đạt 100% trong bộ đề Quản trị học.</p>
-                    <span className="text-[10px] text-slate-400">10 phút trước</span>
-                  </div>
-                </div>
 
-                <div className="py-2.5 flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles className="w-4 h-4" />
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-2">
+                {notifications.length > 0 ? (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (n.link) {
+                          navigate(n.link);
+                          setShowNotifications(false);
+                        }
+                      }}
+                      className={`py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/80 transition-colors rounded-xl px-2 ${
+                        !n.read ? 'bg-indigo-50/30' : ''
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                        n.type === 'violation'
+                          ? 'bg-rose-100 text-rose-600'
+                          : n.type === 'submission'
+                          ? 'bg-emerald-100 text-emerald-600'
+                          : 'bg-indigo-100 text-indigo-600'
+                      }`}>
+                        {n.type === 'violation' ? (
+                          <ShieldAlert className="w-4 h-4" />
+                        ) : n.type === 'submission' ? (
+                          <CheckCircle2 className="w-4 h-4" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="text-xs flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className={`font-bold ${n.type === 'violation' ? 'text-rose-700' : 'text-slate-800'}`}>
+                            {n.title}
+                          </p>
+                          <span className="text-[10px] text-slate-400">{n.createdAt}</span>
+                        </div>
+                        <p className="text-slate-600 mt-0.5 leading-relaxed">{n.message}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    Không có thông báo mới nào.
                   </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-slate-800">Bộ câu hỏi sẵn sàng</p>
-                    <p className="text-slate-500 mt-0.5">Tài liệu đã được tạo xong câu hỏi ôn tập.</p>
-                    <span className="text-[10px] text-slate-400">1 giờ trước</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -174,7 +225,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
             </div>
             <div className="hidden sm:block text-left">
-              <div className="text-xs font-bold text-slate-900 leading-tight">{currentUser.fullName}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900 leading-tight">{currentUser.fullName}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                  currentUser.role === 'teacher' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
+                }`}>
+                  {currentUser.role === 'teacher' ? 'GV' : 'HS'}
+                </span>
+              </div>
               <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{currentUser.school || 'Sinh viên'}</div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
@@ -185,16 +243,49 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
               {/* Profile Card Header */}
               <div className="p-3 border-b border-slate-100 mb-1">
-                <p className="font-bold text-sm text-slate-900 leading-tight">{currentUser.fullName}</p>
-                <p className="text-xs text-slate-500 truncate mt-0.5">{currentUser.email}</p>
-                <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-200/60">
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Tài khoản chính thức</span>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-sm text-slate-900 leading-tight">{currentUser.fullName}</p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                    currentUser.role === 'teacher' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  }`}>
+                    {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
+                  </span>
                 </div>
+                <p className="text-xs text-slate-500 truncate mt-0.5">{currentUser.email}</p>
               </div>
 
               {/* Menu Links */}
               <div className="space-y-1">
+                <Link
+                  to="/app/classes"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                >
+                  <Users className="w-4 h-4 text-indigo-600" />
+                  <span>{currentUser.role === 'teacher' ? 'Quản lý Lớp học' : 'Lớp học của tôi'}</span>
+                </Link>
+
+                {/* Quick Role Switcher Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextRole = currentUser.role === 'teacher' ? 'student' : 'teacher';
+                    switchUserRole(nextRole);
+                    setShowUserMenu(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
+                >
+                  <span className="flex items-center gap-2">
+                    {currentUser.role === 'teacher' ? (
+                      <Users className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                      <GraduationCap className="w-4 h-4 text-emerald-600" />
+                    )}
+                    <span>Đổi sang {currentUser.role === 'teacher' ? 'Học sinh' : 'Giáo viên'}</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-200 rounded text-slate-700">Đổi</span>
+                </button>
+
                 <Link
                   to="/app/settings"
                   onClick={() => setShowUserMenu(false)}

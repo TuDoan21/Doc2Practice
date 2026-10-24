@@ -80,14 +80,19 @@ export const LoginPage = () => {
   };
 
   // Nhanh tài khoản mẫu
-  const handleQuickDemoLogin = () => {
-    setEmail('vanhoc.student@uit.edu.vn');
-    setPassword('Demo@123456');
+  const handleQuickDemoLogin = (role: 'student' | 'teacher' = 'student') => {
+    if (role === 'teacher') {
+      setEmail('giaovien.tran@uit.edu.vn');
+      setPassword('Demo@Teacher123');
+    } else {
+      setEmail('vanhoc.student@uit.edu.vn');
+      setPassword('Demo@123456');
+    }
     setErrors({});
     setIsLoading(true);
 
     setTimeout(() => {
-      loginUser('vanhoc.student@uit.edu.vn');
+      loginUser(role === 'teacher' ? 'giaovien.tran@uit.edu.vn' : 'vanhoc.student@uit.edu.vn', role);
       setIsLoading(false);
       navigate('/app/dashboard');
     }, 400);
@@ -134,21 +139,30 @@ export const LoginPage = () => {
       )}
 
       {/* Quick Demo Login Option */}
-      <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100/80 flex items-center justify-between gap-3">
+      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100/80 space-y-2.5">
         <div className="space-y-0.5">
           <div className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Tài khoản kiểm thử nhanh (Demo)</span>
+            <span>Tài khoản kiểm thử nhanh (1-Click Demo)</span>
           </div>
-          <p className="text-[11px] text-indigo-700/80">Khám phá ngay mà không cần tạo tài khoản</p>
+          <p className="text-[11px] text-indigo-700/80">Chọn một trong hai vai trò để trải nghiệm luồng thực tế ngay lập tức:</p>
         </div>
-        <button
-          type="button"
-          onClick={handleQuickDemoLogin}
-          className="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all active:scale-95"
-        >
-          Đăng nhập 1-Click
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleQuickDemoLogin('student')}
+            className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
+          >
+            🎓 Học sinh (Làm bài)
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickDemoLogin('teacher')}
+            className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
+          >
+            👨‍🏫 Giáo viên (Tạo lớp & Đề)
+          </button>
+        </div>
       </div>
 
       {/* Main Form */}

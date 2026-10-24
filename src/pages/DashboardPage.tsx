@@ -11,7 +11,10 @@ import {
   BookOpen,
   Award,
   Calendar,
-  Zap
+  Zap,
+  Users,
+  GraduationCap,
+  ShieldAlert
 } from 'lucide-react';
 import {
   AreaChart,
@@ -29,8 +32,9 @@ import {
   getUniqueMistakes,
   createMistakeBankQuizSet
 } from '../services/storage';
+import { getClassrooms, getAssignments } from '../services/classService';
 import { getCurrentUser, type UserProfile } from '../services/auth';
-import type { DocumentItem, QuizSet, UserStats } from '../types';
+import type { DocumentItem, QuizSet, UserStats, Classroom, ClassAssignment } from '../types';
 import { DifficultyBadge } from '../components/common/Badge';
 import { weeklyActivityData } from '../data/mockData';
 
@@ -41,6 +45,8 @@ export const DashboardPage = () => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [quizSets, setQuizSets] = useState<QuizSet[]>([]);
   const [mistakesCount, setMistakesCount] = useState(0);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
 
   useEffect(() => {
     setStats(getStats());
@@ -48,12 +54,26 @@ export const DashboardPage = () => {
     setQuizSets(getQuizSets().slice(0, 3));
     setCurrentUser(getCurrentUser());
     setMistakesCount(getUniqueMistakes().length);
+    setClassrooms(getClassrooms());
+    setAssignments(getAssignments());
 
     const handleAuthChange = () => {
       setCurrentUser(getCurrentUser());
     };
+    const handleClassChange = () => {
+      setClassrooms(getClassrooms());
+      setAssignments(getAssignments());
+    };
+
     window.addEventListener('auth_state_changed', handleAuthChange);
-    return () => window.removeEventListener('auth_state_changed', handleAuthChange);
+    window.addEventListener('classes_updated', handleClassChange);
+    window.addEventListener('assignments_updated', handleClassChange);
+
+    return () => {
+      window.removeEventListener('auth_state_changed', handleAuthChange);
+      window.removeEventListener('classes_updated', handleClassChange);
+      window.removeEventListener('assignments_updated', handleClassChange);
+    };
   }, []);
 
   const handleStartMistakesFromDashboard = () => {
@@ -62,6 +82,12 @@ export const DashboardPage = () => {
       navigate(`/app/quiz/${newQuiz.id}`);
     }
   };
+
+  const isTeacher = currentUser.role === 'teacher';
+  const relevantClasses = isTeacher
+    ? classrooms
+    : classrooms.filter((c) => c.studentIds.includes(currentUser.id));
+  const examCount = assignments.filter((a) => a.type === 'exam').length;
 
   return (
     <div className="space-y-8 pb-10">
@@ -143,6 +169,68 @@ export const DashboardPage = () => {
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Điểm trung bình</div>
             <div className="text-2xl font-extrabold text-slate-900 mt-0.5">{stats.averageScore}%</div>
             <div className="text-[11px] text-amber-600 font-medium mt-0.5">Mức độ hiểu bài: Giỏi</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Classroom Quick Access Card for Teacher or Student */}
+      <div className={`p-5 sm:p-6 rounded-3xl border transition-all shadow-sm ${
+        isTeacher
+          ? 'bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 border-indigo-700/60 text-white'
+          : 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-slate-800 text-white'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                isTeacher
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/30'
+                  : 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30'
+              }`}>
+                {isTeacher ? <Users className="w-3.5 h-3.5" /> : <GraduationCap className="w-3.5 h-3.5" />}
+                <span>{isTeacher ? '👨‍🏫 Khu vực Dành riêng cho Giáo viên' : '🎓 Không gian Học sinh / Sinh viên'}</span>
+              </span>
+              <span className="text-xs text-slate-400 hidden sm:inline">•</span>
+              <span className="text-xs text-slate-400 hidden sm:inline">Doc2Practice Classroom</span>
+            </div>
+
+            <h3 className="text-lg sm:text-xl font-black tracking-tight text-white">
+              {isTeacher
+                ? `Quản lý Lớp học & Giám sát Kỳ thi (${relevantClasses.length} lớp • ${assignments.length} bài tập/thi)`
+                : `Lớp học của bạn & Bài kiểm tra được giao (${relevantClasses.length} lớp tham gia)`}
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              {isTeacher
+                ? 'Tạo lớp bằng mã PIN, phân phát bài ôn tập & đề thi trắc nghiệm từ tài liệu của bạn, đồng thời theo dõi điểm số và cảnh báo gian lận chuyển tab trực tiếp.'
+                : 'Tham gia lớp học của giáo viên bằng mã PIN để làm bài tập, bài kiểm tra có giám sát chống chuyển tab, hoặc tự do tải tài liệu cá nhân để ôn luyện riêng biệt.'}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 text-white font-medium border border-white/10 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-300" />
+                <span>{relevantClasses.length} Lớp học</span>
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 text-white font-medium border border-white/10 flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+                <span>{examCount} Bài thi có giám sát</span>
+              </span>
+              {!isTeacher && (
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-medium border border-emerald-500/30">
+                  ✓ Tự do upload file cá nhân để học riêng
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex sm:flex-col gap-2.5 shrink-0">
+            <Link
+              to="/app/classes"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-extrabold text-xs shadow-md transition-all hover:scale-105 active:scale-95"
+            >
+              <span>{isTeacher ? 'Quản lý Lớp & Xem điểm' : 'Vào Lớp & Xem đề thi'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ import { FlashcardPage } from './pages/FlashcardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ClassroomsPage } from './pages/ClassroomsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 
@@ -48,6 +49,7 @@ function App() {
           <Route path="flashcards" element={<FlashcardPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="history" element={<HistoryPage />} />
+          <Route path="classes" element={<ClassroomsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

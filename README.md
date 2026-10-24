@@ -55,9 +55,27 @@
 - **Biểu đồ hoạt động 7 ngày (Recharts AreaChart):** Theo dõi tần suất học và biến thiên điểm số.
 - **Lịch sử làm bài chi tiết:** Xem lại từng lượt thi, số câu đúng/sai, thời gian làm và mở modal xem lại chi tiết từng câu.
 
-### 9. 🔐 Quản Lý Hồ Sơ & Xác Thực Người Dùng
-- **Đăng nhập (`/login`) & Đăng ký (`/register`):** Thiết kế 2 cột chuẩn SaaS hiện đại, kiểm tra email/mật khẩu, thanh đo độ mạnh mật khẩu và modal điều khoản bảo mật.
-- **Cơ chế 1-Click Demo:** Đăng nhập tức thì chỉ với một thao tác.
+### 9. 🏫 Hệ Thống Lớp Học, Phân Quyền Giáo Viên & Chế Độ Thi Chống Gian Lận (Anti-Cheat Exam Lock)
+- **Phân quyền linh hoạt Giáo viên & Học sinh:**
+  - **👨‍🏫 Giáo viên (Teacher):**
+    - Tạo lớp học với mã PIN ngắn gọn (VD: `WEB-8821`, `AI-4490`) để học sinh tham gia nhanh chóng.
+    - Soạn đề từ tài liệu môn học và giao 2 dạng bài: **Bài ôn tập tự do (Practice)** hoặc **Bài kiểm tra chính thức (Exam)**.
+    - Cài đặt thời gian làm bài, hạn chót và bật **Chế độ chống gian lận (Anti-Cheat Lock)**.
+    - Xem bảng điểm tổng hợp, danh sách học sinh tham gia, chi tiết từng bài nộp (thời gian làm, số câu đúng/sai, số lần vi phạm chuyển tab).
+    - Nhận **thông báo đẩy thời gian thực (Live Notifications)** ngay khi học sinh nộp bài hoặc bị cảnh báo gian lận.
+  - **🎓 Học sinh (Student):**
+    - Tham gia các lớp học của giáo viên bằng mã PIN.
+    - Làm bài ôn tập và bài thi được giao. Khi vào bài thi có khóa chống gian lận, hệ thống sẽ giám sát hành vi chuyển tab / ẩn trình duyệt.
+    - **Quyền tự học độc lập:** Học sinh vẫn toàn quyền tải lên tài liệu cá nhân (.pdf, .docx, .pptx) để AI tạo bộ trắc nghiệm và flashcard riêng bất cứ lúc nào mà không bị giới hạn bởi lớp học.
+- **Cơ chế Khóa Chống Gian Lận (Anti-Cheat Tab-Switch Lock):**
+  - Giám sát qua API `visibilitychange`: khi học sinh chuyển sang tab khác, thu nhỏ cửa sổ hoặc mở ứng dụng khác, hệ thống sẽ kích hoạt màn hình cảnh báo đỏ toàn màn hình.
+  - Tự động ghi nhận số lần vi phạm (`tabSwitchCount`). Nếu vượt quá ngưỡng cho phép (mặc định 3 lần), hệ thống sẽ **tự động thu bài ngay lập tức** với trạng thái `violation_auto_submitted` và gửi thông báo cảnh báo tức thì đến giáo viên.
+- **Chuyển đổi vai trò 1-Click (Role Switcher):**
+  - Chuyển đổi tức thời giữa vai trò Học sinh và Giáo viên ngay trong menu Avatar ở Header để trải nghiệm đầy đủ cả 2 góc nhìn.
+
+### 10. 🔐 Quản Lý Hồ Sơ & Xác Thực Người Dùng
+- **Đăng nhập (`/login`) & Đăng ký (`/register`):** Thiết kế 2 cột chuẩn SaaS hiện đại, chọn vai trò tài khoản (Học sinh hoặc Giáo viên), kiểm tra email/mật khẩu, thanh đo độ mạnh mật khẩu và modal điều khoản bảo mật.
+- **Cơ chế 1-Click Demo:** Đăng nhập tức thì với 2 nút dành riêng: `🎓 Học sinh: Nguyễn Văn Học` hoặc `👨‍🏫 Giáo viên: ThS. Trần Thị Giáo Viên`.
 - **Hồ sơ cá nhân (`/app/settings`):** Tùy chỉnh Họ tên, Trường/Tổ chức và chọn 5 bảng màu avatar gradient sang trọng.
 - **Đăng xuất an toàn:** Modal xác nhận đăng xuất có mặt ở cả Header và Sidebar.
 
@@ -130,10 +148,12 @@ d:\Doc2Practice\
 │   │   ├── FlashcardPage.tsx # Lật thẻ 3D, auto-play, shuffle, spaced repetition
 │   │   ├── DocumentsPage.tsx # Quản lý tài liệu nguồn: PDF, Word, PowerPoint
 │   │   ├── HistoryPage.tsx   # Lịch sử bài làm & phân tích chi tiết từng lần thi
+│   │   ├── ClassroomsPage.tsx# Quản lý lớp học, giao bài, làm bài & giám sát chống gian lận
 │   │   └── SettingsPage.tsx  # Hồ sơ người dùng, cấu hình Gemini API Key & Reset hệ thống
 │   ├── services\
 │   │   ├── aiService.ts      # Client Google Gemini 1.5 Flash + Semantic Generator
-│   │   ├── auth.ts           # Quản lý phiên đăng nhập/đăng ký & avatar
+│   │   ├── auth.ts           # Quản lý phiên đăng nhập/đăng ký, phân quyền giáo viên/học sinh
+│   │   ├── classService.ts   # Quản lý lớp học, giao bài, lưu bài nộp và thông báo
 │   │   └── storage.ts        # Storage CRUD engine cho documents, quiz, flashcards, attempts
 │   ├── types\
 │   │   └── index.ts          # TypeScript Data Contracts

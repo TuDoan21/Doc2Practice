@@ -25,6 +25,7 @@ export const RegisterPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [role, setRole] = useState<'student' | 'teacher'>('student');
 
   // UI state
   const [showPassword, setShowPassword] = useState(false);
@@ -110,7 +111,7 @@ export const RegisterPage = () => {
 
     // Tạo tài khoản và lưu phiên người dùng
     setTimeout(() => {
-      registerUser(fullName.trim(), email.trim());
+      registerUser(fullName.trim(), email.trim(), role);
       setIsLoading(false);
       setRegisterAlert({
         type: 'success',
@@ -155,6 +156,37 @@ export const RegisterPage = () => {
 
       {/* Main Registration Form */}
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {/* Role Selection */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+            Vai trò của bạn
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setRole('student')}
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                role === 'student'
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs ring-1 ring-indigo-600'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>🎓 Học sinh / Sinh viên</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('teacher')}
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                role === 'teacher'
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs ring-1 ring-emerald-600'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>👨‍🏫 Giáo viên / Giảng viên</span>
+            </button>
+          </div>
+        </div>
+
         {/* Full Name */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">

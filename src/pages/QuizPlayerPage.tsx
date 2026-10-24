@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   ChevronLeft,
@@ -15,10 +15,13 @@ import {
   Bookmark,
   Printer,
   Sparkles,
-  BookOpen
+  BookOpen,
+  ShieldAlert
 } from 'lucide-react';
 import { getQuizSetById, recordQuizAttempt } from '../services/storage';
-import type { QuizSet, QuizAttempt, Question } from '../types';
+import { getAssignmentById, recordStudentSubmission } from '../services/classService';
+import { getCurrentUser } from '../services/auth';
+import type { QuizSet, QuizAttempt, Question, ClassAssignment } from '../types';
 import { Modal } from '../components/common/Modal';
 import { DifficultyBadge } from '../components/common/Badge';
 
@@ -43,6 +46,52 @@ export const QuizPlayerPage = () => {
 
   // Chế độ đang làm lại câu sai
   const [isWrongOnlyMode, setIsWrongOnlyMode] = useState(false);
+
+  // Ngữ cảnh Lớp học & Bài kiểm tra của giáo viên
+  const [searchParams] = useSearchParams();
+  const assignmentId = searchParams.get('assignmentId');
+  const [assignment, setAssignment] = useState<ClassAssignment | null>(null);
+
+  // Anti-Cheat (Chống gian lận / khóa chuyển tab)
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showTabWarning, setShowTabWarning] = useState(false);
+
+  useEffect(() => {
+    if (assignmentId) {
+      const foundAsg = getAssignmentById(assignmentId);
+      if (foundAsg) {
+        setAssignment(foundAsg);
+        if (foundAsg.type === 'exam') {
+          setLearningMode('exam');
+        }
+      }
+    }
+  }, [assignmentId]);
+
+  // Giám sát học sinh rời tab khi làm bài kiểm tra chính thức
+  useEffect(() => {
+    if (isSubmitted || !assignment?.preventTabSwitch) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((prev) => {
+          const next = prev + 1;
+          setShowTabWarning(true);
+          const maxAllowed = assignment.maxTabSwitchViolations || 3;
+          if (next >= maxAllowed) {
+            // Tự động thu bài khi vi phạm vượt ngưỡng
+            setTimeout(() => {
+              handleConfirmSubmit(true);
+            }, 800);
+          }
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isSubmitted, assignment]);
 
   useEffect(() => {
     if (!id) return;
@@ -111,8 +160,9 @@ export const QuizPlayerPage = () => {
   };
 
   // Nộp bài
-  const handleConfirmSubmit = () => {
+  const handleConfirmSubmit = (isAutoViolation = false) => {
     setIsConfirmModalOpen(false);
+    setShowTabWarning(false);
     setIsSubmitted(true);
 
     let correctCount = 0;
@@ -129,7 +179,7 @@ export const QuizPlayerPage = () => {
 
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
 
-    // Ghi nhận lần làm bài
+    // Ghi nhận lần làm bài cá nhân
     const attempt: QuizAttempt = {
       id: `att-${Date.now()}`,
       quizSetId: quizSet.id,
@@ -142,6 +192,25 @@ export const QuizPlayerPage = () => {
       answers: answerLogs,
     };
     recordQuizAttempt(attempt);
+
+    // NẾU LÀ BÀI THI/BÀI ÔN CỦA LỚP HỌC: BÁO CÁO VỀ CHO GIÁO VIÊN BIẾT
+    if (assignment) {
+      const currentUser = getCurrentUser();
+      recordStudentSubmission({
+        assignmentId: assignment.id,
+        classId: assignment.classId,
+        className: assignment.className,
+        studentId: currentUser.id,
+        studentName: currentUser.fullName,
+        studentEmail: currentUser.email,
+        score: scorePercent,
+        correctCount,
+        totalQuestions,
+        durationSeconds: secondsElapsed,
+        tabSwitchCount,
+        status: isAutoViolation ? 'violation_auto_submitted' : 'submitted',
+      });
+    }
 
     if (scorePercent >= 80) {
       try {
@@ -216,8 +285,23 @@ export const QuizPlayerPage = () => {
       <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <DifficultyBadge difficulty={quizSet.difficulty} />
+              {assignment && (
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Lớp: {assignment.className}
+                </span>
+              )}
+              {assignment?.preventTabSwitch && (
+                <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 border ${
+                  tabSwitchCount > 0
+                    ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Khóa chuyển tab: {tabSwitchCount}/{assignment.maxTabSwitchViolations}</span>
+                </span>
+              )}
               {isWrongOnlyMode && (
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                   Chế độ: Ôn câu làm sai
@@ -722,7 +806,7 @@ export const QuizPlayerPage = () => {
             </button>
             <button
               type="button"
-              onClick={handleConfirmSubmit}
+              onClick={() => handleConfirmSubmit(false)}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
             >
               Xác nhận nộp
@@ -730,6 +814,45 @@ export const QuizPlayerPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Anti-Cheat Tab Switch Warning Popup */}
+      {showTabWarning && assignment?.preventTabSwitch && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 border-2 border-rose-500 shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <ShieldAlert className="w-8 h-8 text-rose-600 animate-bounce" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-rose-700 tracking-tight">
+                CẢNH BÁO VI PHẠM QUY CHẾ THI!
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Hệ thống phát hiện bạn vừa rời khỏi màn hình làm bài kiểm tra. Hành vi này đã được ghi nhận và báo cáo trực tiếp về tài khoản của Giáo viên!
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold space-y-1">
+              <div>Số lần vi phạm: <span className="text-base font-black text-rose-600">{tabSwitchCount}</span> / {assignment.maxTabSwitchViolations || 3} lần</div>
+              <div className="text-[11px] font-normal text-slate-500">
+                {tabSwitchCount >= (assignment.maxTabSwitchViolations || 3)
+                  ? '⚠️ Bạn đã vi phạm quá giới hạn cho phép. Bài thi đang tự động thu hồi!'
+                  : 'Nếu tiếp tục rời khỏi màn hình thi, bài làm sẽ tự động bị khóa và nộp về cho giáo viên.'}
+              </div>
+            </div>
+
+            {tabSwitchCount < (assignment.maxTabSwitchViolations || 3) && (
+              <button
+                type="button"
+                onClick={() => setShowTabWarning(false)}
+                className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md transition-all hover:scale-102"
+              >
+                Tôi cam kết không vi phạm và tiếp tục làm bài
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
