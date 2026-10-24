@@ -20,7 +20,12 @@ import {
   ArrowLeft,
   RefreshCw,
   CheckCircle2,
-  Zap
+  Zap,
+  Download,
+  UploadCloud,
+  FileText,
+  FileSpreadsheet,
+  FolderOpen
 } from 'lucide-react';
 import { getCurrentUser, type UserProfile } from '../services/auth';
 import {
@@ -32,10 +37,12 @@ import {
   createAssignment,
   getSubmissionsByClass,
   getSubmissionsByAssignment,
-  simulateStudentTabViolation
+  simulateStudentTabViolation,
+  getClassMaterials,
+  addClassMaterial
 } from '../services/classService';
 import { getQuizSets } from '../services/storage';
-import type { Classroom, ClassAssignment, QuizSet, AssignmentType, StudentSubmission } from '../types';
+import type { Classroom, ClassAssignment, QuizSet, AssignmentType, StudentSubmission, ClassMaterial } from '../types';
 import { Modal } from '../components/common/Modal';
 
 export const ClassroomsPage = () => {
@@ -239,12 +246,59 @@ export const ClassroomsPage = () => {
   const selectedClass = classrooms.find((c) => c.id === selectedClassId) || classrooms[0];
   const assignments = selectedClass ? getAssignmentsByClass(selectedClass.id) : [];
   const submissions = selectedClass ? getSubmissionsByClass(selectedClass.id) : [];
+  const materials = selectedClass ? getClassMaterials(selectedClass.id) : [];
+
+  const [activeTab, setActiveTab] = useState<'assignments' | 'materials' | 'members' | 'gradebook'>('assignments');
+  const [isUploadMaterialOpen, setIsUploadMaterialOpen] = useState(false);
+  const [matTitle, setMatTitle] = useState('');
+  const [matFileName, setMatFileName] = useState('');
+  const [matFileType, setMatFileType] = useState<'pdf' | 'docx' | 'pptx' | 'text'>('pdf');
+  const [matFileSize, setMatFileSize] = useState('2.4 MB');
+  const [actionToast, setActionToast] = useState<string | null>(null);
+
+  const handleUploadMaterialSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClass || !matTitle.trim() || !matFileName.trim()) return;
+
+    addClassMaterial({
+      classId: selectedClass.id,
+      title: matTitle.trim(),
+      fileName: matFileName.trim(),
+      fileSize: matFileSize || '2.5 MB',
+      fileType: matFileType,
+    });
+
+    setIsUploadMaterialOpen(false);
+    setMatTitle('');
+    setMatFileName('');
+    setActionToast('Tải tài liệu môn học thành công!');
+    setTimeout(() => setActionToast(null), 3000);
+    refreshData();
+  };
+
+  const handleDownloadMaterial = (m: ClassMaterial) => {
+    m.downloadCount += 1;
+    setActionToast(`Bắt đầu tải tệp: ${m.fileName} (${m.fileSize})`);
+    setTimeout(() => setActionToast(null), 3000);
+  };
+
+  const handleExportGradebook = () => {
+    setActionToast(`Đã xuất bảng điểm lớp ${selectedClass?.name || ''} ra tệp Excel chuẩn (D2P_Bang_Diem.xlsx)!`);
+    setTimeout(() => setActionToast(null), 3500);
+  };
 
   const monitoringAssignment = monitoringAssignmentId ? getAssignmentById(monitoringAssignmentId) : null;
   const monitoringSubmissions = monitoringAssignmentId ? getSubmissionsByAssignment(monitoringAssignmentId) : [];
 
   return (
     <div className="space-y-6 pb-16">
+      {/* Toast Alert */}
+      {actionToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-700 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{actionToast}</span>
+        </div>
+      )}
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="space-y-1">
@@ -731,22 +785,97 @@ export const ClassroomsPage = () => {
                 )}
               </div>
 
-              {/* Assignments Section */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-indigo-600" />
-                    <span>Danh sách bài tập & Đề kiểm tra ({assignments.length})</span>
-                  </h3>
-                  <span className="text-xs text-slate-400">
-                    {isTeacher ? 'Quản lý bài kiểm tra cho cả lớp' : 'Hoàn thành trước hạn nộp'}
+              {/* Classroom Hub 4-Tab Navigation */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-1 overflow-x-auto text-xs font-bold scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('assignments')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                    activeTab === 'assignments'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <FileCheck className="w-4 h-4" />
+                  <span>Đề thi & Bài tập</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'assignments' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {assignments.length}
                   </span>
-                </div>
+                </button>
 
-                {assignments.length > 0 ? (
-                  <div className="space-y-3">
-                    {assignments.map((asg) => {
-                      return (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('materials')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                    activeTab === 'materials'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Tài liệu học tập</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'materials' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {materials.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('members')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                    activeTab === 'members'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Thành viên lớp</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'members' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {selectedClass.studentCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('gradebook')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                    activeTab === 'gradebook'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Sổ điểm & Thống kê</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'gradebook' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {submissions.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* ================= TAB 1: ASSIGNMENTS & EXAMS ================= */}
+              {activeTab === 'assignments' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <FileCheck className="w-4 h-4 text-indigo-600" />
+                      <span>Danh sách bài tập & Đề kiểm tra ({assignments.length})</span>
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      {isTeacher ? 'Quản lý bài kiểm tra cho cả lớp' : 'Hoàn thành trước hạn nộp'}
+                    </span>
+                  </div>
+
+                  {assignments.length > 0 ? (
+                    <div className="space-y-3">
+                      {assignments.map((asg) => (
                         <div
                           key={asg.id}
                           className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -806,7 +935,7 @@ export const ClassroomsPage = () => {
                                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors"
                                   >
                                     <Eye className="w-3.5 h-3.5 text-indigo-400" />
-                                    <span>Theo dõi tiến độ học sinh</span>
+                                    <span>Theo dõi tiến độ</span>
                                   </button>
                                 )}
                                 <button
@@ -834,29 +963,228 @@ export const ClassroomsPage = () => {
                             )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    Chưa có bài tập nào được giao trong lớp này.
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      Chưa có bài tập nào được giao trong lớp này.
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* Submissions Gradebook for Teacher */}
-              {isTeacher && (
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
+              {/* ================= TAB 2: CLASS MATERIALS ================= */}
+              {activeTab === 'materials' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4 text-indigo-600" />
+                        <span>Kho tài liệu bài giảng môn học ({materials.length})</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tài liệu chính thức do giáo viên cung cấp để học sinh tải về và ôn tập
+                      </p>
+                    </div>
+
+                    {isTeacher && (
+                      <button
+                        type="button"
+                        onClick={() => setIsUploadMaterialOpen(true)}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-102 shrink-0 self-start sm:self-auto"
+                      >
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Thêm tài liệu mới</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {materials.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {materials.map((mat) => (
+                        <div key={mat.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                              mat.fileType === 'pdf'
+                                ? 'bg-rose-50 text-rose-600'
+                                : mat.fileType === 'pptx'
+                                ? 'bg-amber-50 text-amber-600'
+                                : 'bg-blue-50 text-blue-600'
+                            }`}>
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                              <h4 className="font-bold text-slate-900 text-xs sm:text-sm group-hover:text-indigo-600 transition-colors truncate">
+                                {mat.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-slate-500">{mat.fileName}</span>
+                                <span>•</span>
+                                <span>{mat.fileSize}</span>
+                                <span>•</span>
+                                <span>GV: {mat.uploadedBy}</span>
+                                <span>•</span>
+                                <span>{mat.uploadedAt}</span>
+                                <span>•</span>
+                                <span className="text-indigo-600 font-medium">{mat.downloadCount} lượt tải</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadMaterial(mat)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                              title="Tải tệp về máy"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Tải về</span>
+                            </button>
+
+                            <Link
+                              to={`/app/create-quiz?doc=${encodeURIComponent(mat.fileName)}&size=${encodeURIComponent(mat.fileSize)}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-all"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Tạo bài ôn từ file</span>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      Chưa có tài liệu nào được tải lên cho lớp học này.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ================= TAB 3: CLASS MEMBERS ================= */}
+              {activeTab === 'members' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-5 animate-fadeIn">
+                  {/* Teacher Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-base shadow-sm shrink-0">
+                        👨‍🏫
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Giáo viên phụ trách bộ môn</div>
+                        <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">{selectedClass.teacherName}</h4>
+                        <p className="text-xs text-slate-500">Tổ Chuyên Môn Toán - Tin • doc2practice.edu.vn</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCode(selectedClass.code)}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-xs shadow-xs transition-all shrink-0 self-start sm:self-auto"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{copiedCode === selectedClass.code ? 'Đã sao chép mã!' : `Mã mời: ${selectedClass.code}`}</span>
+                    </button>
+                  </div>
+
+                  {/* Student Roster */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                        <Users className="w-4 h-4 text-indigo-600" />
+                        <span>Danh sách học sinh trong lớp ({selectedClass.studentCount} em)</span>
+                      </h4>
+                      <span className="text-xs text-emerald-600 font-bold">100% tài khoản đã kích hoạt</span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-semibold border-y border-slate-100">
+                          <tr>
+                            <th className="py-2.5 px-3">Mã học sinh</th>
+                            <th className="py-2.5 px-3">Họ và tên</th>
+                            <th className="py-2.5 px-3">Email trường học</th>
+                            <th className="py-2.5 px-3">Ngày tham gia</th>
+                            <th className="py-2.5 px-3 text-right">Kỷ luật thi cử</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          <tr className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-mono font-bold text-indigo-700">HS-2026-0812</td>
+                            <td className="py-3 px-3 font-bold text-slate-900">Nguyễn Văn Học (Bạn)</td>
+                            <td className="py-3 px-3 text-slate-500">hoc.nv@student.edu.vn</td>
+                            <td className="py-3 px-3 text-slate-400">20/10/2026</td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <Check className="w-3 h-3" />
+                                <span>Gương mẫu (0 vi phạm)</span>
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-mono font-bold text-slate-600">HS-2026-0815</td>
+                            <td className="py-3 px-3 font-bold text-slate-900">Lê Thị Mai</td>
+                            <td className="py-3 px-3 text-slate-500">mai.lt@student.edu.vn</td>
+                            <td className="py-3 px-3 text-slate-400">20/10/2026</td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <Check className="w-3 h-3" />
+                                <span>Gương mẫu (0 vi phạm)</span>
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-mono font-bold text-slate-600">HS-2026-0820</td>
+                            <td className="py-3 px-3 font-bold text-slate-900">Trần Bảo Long</td>
+                            <td className="py-3 px-3 text-slate-500">long.tb@student.edu.vn</td>
+                            <td className="py-3 px-3 text-slate-400">21/10/2026</td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                                <span>⚠️ 1 lần thoát tab</span>
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-mono font-bold text-slate-600">HS-2026-0822</td>
+                            <td className="py-3 px-3 font-bold text-slate-900">Phạm Minh Trang</td>
+                            <td className="py-3 px-3 text-slate-500">trang.pm@student.edu.vn</td>
+                            <td className="py-3 px-3 text-slate-400">21/10/2026</td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <Check className="w-3 h-3" />
+                                <span>Gương mẫu (0 vi phạm)</span>
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ================= TAB 4: GRADEBOOK & STATISTICS ================= */}
+              {activeTab === 'gradebook' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div>
                       <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                         <Award className="w-4 h-4 text-emerald-600" />
-                        <span>Bảng điểm & Giám sát học sinh ({submissions.length} lượt nộp)</span>
+                        <span>Sổ điểm & Báo cáo kết quả ({submissions.length} bài nộp)</span>
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Hệ thống tự động thông báo và ghi nhận số lần học sinh rời màn hình làm bài.
+                        Tổng hợp kết quả làm bài tập và bài kiểm tra có giám sát chống gian lận
                       </p>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExportGradebook}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all hover:scale-102 shrink-0 self-start sm:self-auto"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                      <span>Xuất bảng điểm (Excel)</span>
+                    </button>
                   </div>
 
                   {submissions.length > 0 ? (
@@ -873,54 +1201,52 @@ export const ClassroomsPage = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {submissions.map((sub) => {
-                            return (
-                              <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
-                                <td className="py-3 px-3">
-                                  <div className="font-bold text-slate-900">{sub.studentName}</div>
-                                  <div className="text-[11px] text-slate-400">{sub.studentEmail}</div>
-                                </td>
-                                <td className="py-3 px-3 font-medium text-slate-700">
-                                  {sub.className}
-                                </td>
-                                <td className="py-3 px-3">
-                                  <span className={`font-black text-sm px-2 py-0.5 rounded ${
-                                    sub.score >= 80 ? 'text-emerald-700 bg-emerald-50' : 'text-slate-800 bg-slate-100'
-                                  }`}>
-                                    {sub.score}%
+                          {submissions.map((sub) => (
+                            <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="py-3 px-3">
+                                <div className="font-bold text-slate-900">{sub.studentName}</div>
+                                <div className="text-[11px] text-slate-400">{sub.studentEmail}</div>
+                              </td>
+                              <td className="py-3 px-3 font-medium text-slate-700">
+                                {sub.className}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`font-black text-sm px-2 py-0.5 rounded ${
+                                  sub.score >= 80 ? 'text-emerald-700 bg-emerald-50' : 'text-slate-800 bg-slate-100'
+                                }`}>
+                                  {sub.score}%
+                                </span>
+                                <span className="text-[10px] text-slate-400 ml-1">({sub.correctCount}/{sub.totalQuestions} câu)</span>
+                              </td>
+                              <td className="py-3 px-3 text-slate-500">
+                                {sub.submittedAt}
+                              </td>
+                              <td className="py-3 px-3">
+                                {sub.tabSwitchCount > 0 ? (
+                                  <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                    <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                    <span>{sub.tabSwitchCount} lần vi phạm</span>
                                   </span>
-                                  <span className="text-[10px] text-slate-400 ml-1">({sub.correctCount}/{sub.totalQuestions} câu)</span>
-                                </td>
-                                <td className="py-3 px-3 text-slate-500">
-                                  {sub.submittedAt}
-                                </td>
-                                <td className="py-3 px-3">
-                                  {sub.tabSwitchCount > 0 ? (
-                                    <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                      <ShieldAlert className="w-3 h-3 text-rose-600" />
-                                      <span>{sub.tabSwitchCount} lần vi phạm</span>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
-                                      <Check className="w-3 h-3" />
-                                      <span>Nghiêm túc (0 lần)</span>
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-3">
-                                  {sub.status === 'violation_auto_submitted' ? (
-                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded">
-                                      Bị thu bài tự động
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">
-                                      Hoàn thành hợp lệ
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                                    <Check className="w-3 h-3" />
+                                    <span>Nghiêm túc (0 lần)</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3">
+                                {sub.status === 'violation_auto_submitted' ? (
+                                  <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded">
+                                    Bị thu bài tự động
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">
+                                    Hoàn thành hợp lệ
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -1298,6 +1624,86 @@ export const ClassroomsPage = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal: Tải tài liệu môn học mới lên Lớp */}
+      <Modal
+        isOpen={isUploadMaterialOpen}
+        onClose={() => setIsUploadMaterialOpen(false)}
+        title="Tải Tài Liệu / Bài Giảng Lên Lớp Học"
+        maxWidth="md"
+      >
+        <form onSubmit={handleUploadMaterialSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">Tiêu đề tài liệu / Bài giảng *</label>
+            <input
+              type="text"
+              required
+              value={matTitle}
+              onChange={(e) => setMatTitle(e.target.value)}
+              placeholder="VD: Đề cương Ôn tập Chương 3 & Bài tập áp dụng"
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Định dạng tệp</label>
+              <select
+                value={matFileType}
+                onChange={(e) => setMatFileType(e.target.value as any)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
+              >
+                <option value="pdf">Tệp PDF (.pdf)</option>
+                <option value="docx">Văn bản Word (.docx)</option>
+                <option value="pptx">Slide PowerPoint (.pptx)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Dung lượng ước tính</label>
+              <input
+                type="text"
+                value={matFileSize}
+                onChange={(e) => setMatFileSize(e.target.value)}
+                placeholder="VD: 3.2 MB"
+                className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">Tên tệp lưu trữ *</label>
+            <input
+              type="text"
+              required
+              value={matFileName}
+              onChange={(e) => setMatFileName(e.target.value)}
+              placeholder="VD: De_cuong_on_tap_chuong_3.pdf"
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-mono"
+            />
+          </div>
+
+          <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[11px] text-indigo-800 leading-relaxed">
+            💡 Tài liệu sau khi tải lên sẽ hiển thị ngay cho toàn bộ học sinh trong lớp tải về và có thể tạo câu hỏi trắc nghiệm tự động trực tiếp bằng AI.
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsUploadMaterialOpen(false)}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs"
+            >
+              Tải lên lớp học
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

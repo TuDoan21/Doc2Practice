@@ -4,9 +4,11 @@ import type {
   StudentSubmission,
   AppNotification,
   UserRole,
-  AssignmentType
+  AssignmentType,
+  ClassMaterial
 } from '../types';
 import { getCurrentUser } from './auth';
+import { mockClassMaterials } from '../data/mockData';
 
 const KEYS = {
   CLASSES: 'd2p_classes_v1',
@@ -309,6 +311,36 @@ export const joinClassroomByCode = (code: string): { success: boolean; message: 
 
   window.dispatchEvent(new Event('classes_updated'));
   return { success: true, message: `Tham gia thành công lớp: "${found.name}"!`, classroom: found };
+};
+
+// ==================== CLASS MATERIALS (TÀI LIỆU LỚP HỌC) ====================
+
+export const getClassMaterials = (classId: string): ClassMaterial[] => {
+  return mockClassMaterials.filter((m) => m.classId === classId);
+};
+
+export const addClassMaterial = (params: {
+  classId: string;
+  title: string;
+  fileName: string;
+  fileSize: string;
+  fileType: 'pdf' | 'docx' | 'pptx' | 'text';
+}): ClassMaterial => {
+  const user = getCurrentUser();
+  const newMat: ClassMaterial = {
+    id: `mat-${Date.now()}`,
+    classId: params.classId,
+    title: params.title,
+    fileName: params.fileName,
+    fileSize: params.fileSize,
+    fileType: params.fileType,
+    uploadedBy: user.fullName,
+    uploadedAt: new Date().toLocaleDateString('vi-VN'),
+    downloadCount: 0,
+  };
+  mockClassMaterials.unshift(newMat);
+  window.dispatchEvent(new Event('class_materials_updated'));
+  return newMat;
 };
 
 // ==================== ASSIGNMENTS (BÀI TẬP & BÀI KIỂM TRA) ====================

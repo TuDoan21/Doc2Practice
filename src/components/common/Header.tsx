@@ -91,6 +91,21 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
+  const getRoleBadge = (r: string) => {
+    switch (r) {
+      case 'teacher':
+        return { short: 'GV', full: '👨‍🏫 Giáo viên', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'school_admin':
+        return { short: 'BGH', full: '🏫 Ban Giám Hiệu', color: 'bg-amber-100 text-amber-800 border-amber-200' };
+      case 'system_admin':
+        return { short: 'ADMIN', full: '⚙️ Quản trị HT', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+      default:
+        return { short: 'HS', full: '🎓 Học sinh', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+    }
+  };
+
+  const roleBadge = getRoleBadge(currentUser.role);
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
       {/* Left: Mobile trigger & Search bar */}
@@ -226,13 +241,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
             <div className="hidden sm:block text-left">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-900 leading-tight">{currentUser.fullName}</span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                  currentUser.role === 'teacher' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
-                }`}>
-                  {currentUser.role === 'teacher' ? 'GV' : 'HS'}
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${roleBadge.color}`}>
+                  {roleBadge.short}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{currentUser.school || 'Sinh viên'}</div>
+              <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{currentUser.school || 'Trường học'}</div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
           </button>
@@ -244,10 +257,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
               <div className="p-3 border-b border-slate-100 mb-1">
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-sm text-slate-900 leading-tight">{currentUser.fullName}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                    currentUser.role === 'teacher' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                  }`}>
-                    {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${roleBadge.color}`}>
+                    {roleBadge.full}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 truncate mt-0.5">{currentUser.email}</p>
@@ -261,18 +272,22 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
                 >
                   <Users className="w-4 h-4 text-indigo-600" />
-                  <span>{currentUser.role === 'teacher' ? 'Quản lý Lớp học' : 'Lớp học của tôi'}</span>
+                  <span>
+                    {currentUser.role === 'teacher'
+                      ? 'Quản lý Lớp học'
+                      : currentUser.role === 'school_admin'
+                      ? 'Lớp học & Phân công'
+                      : currentUser.role === 'system_admin'
+                      ? 'Toàn bộ Lớp học'
+                      : 'Lớp học của tôi'}
+                  </span>
                 </Link>
 
                 {/* Role indicator (Strict role enforcement) */}
                 <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
                   <span className="text-slate-500 font-medium">Vai trò tài khoản:</span>
-                  <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
-                    currentUser.role === 'teacher'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
+                  <span className={`font-bold px-2 py-0.5 rounded text-[11px] border ${roleBadge.color}`}>
+                    {roleBadge.full}
                   </span>
                 </div>
 

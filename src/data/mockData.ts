@@ -1,4 +1,4 @@
-import type { DocumentItem, FlashcardDeck, QuizAttempt, QuizSet, UserStats } from '../types';
+import type { DocumentItem, FlashcardDeck, QuizAttempt, QuizSet, UserStats, ClassMaterial } from '../types';
 
 export const initialDocuments: DocumentItem[] = [
   {
@@ -464,3 +464,84 @@ export const initialUserStats: UserStats = {
   averageScore: 88,
   studyStreakDays: 5
 };
+
+export const mockSchools = [
+  {
+    id: 'sch-01',
+    code: 'LHP-HCM',
+    name: 'THPT Chuyên Lê Hồng Phong (TP.HCM)',
+    level: 'high_school' as const,
+    address: '235 Nguyễn Văn Cừ, Phường 4, Quận 5, TP.HCM',
+    phone: '028 3839 8506',
+    email: 'c3lehongphong.tphcm@moet.edu.vn',
+    teacherCount: 112,
+    studentCount: 2150,
+    classCount: 54,
+    status: 'active' as const,
+    createdAt: '2025-08-15',
+  },
+  {
+    id: 'sch-02',
+    code: 'CVA-HN',
+    name: 'THPT Chu Văn An (Hà Nội)',
+    level: 'high_school' as const,
+    address: '10 Thụy Khuê, Tây Hồ, Hà Nội',
+    phone: '024 3823 3141',
+    email: 'c3chuvanan@hanoi.edu.vn',
+    teacherCount: 98,
+    studentCount: 1850,
+    classCount: 46,
+    status: 'active' as const,
+    createdAt: '2025-09-01',
+  },
+  {
+    id: 'sch-03',
+    code: 'UIT-VNU',
+    name: 'Đại học Công nghệ Thông tin - ĐHQG TP.HCM',
+    level: 'university' as const,
+    address: 'Khu phố 6, P. Linh Trung, TP. Thủ Đức, TP.HCM',
+    phone: '028 3725 2002',
+    email: 'info@uit.edu.vn',
+    teacherCount: 240,
+    studentCount: 8200,
+    classCount: 180,
+    status: 'active' as const,
+    createdAt: '2025-06-10',
+  },
+];
+
+export const mockClassMaterials: ClassMaterial[] = [
+  {
+    id: 'mat-01',
+    classId: 'class-web-01',
+    title: 'Đề cương Ôn tập Giữa kỳ I - Đại số & Giải tích 12',
+    fileName: 'De_cuong_on_tap_giai_tich_12_K1.pdf',
+    fileSize: '2.4 MB',
+    fileType: 'pdf' as const,
+    uploadedBy: 'ThS. Trần Thị Giáo Viên',
+    uploadedAt: '22/10/2026',
+    downloadCount: 42,
+  },
+  {
+    id: 'mat-02',
+    classId: 'class-web-01',
+    title: 'Slide Bài giảng: Ứng dụng Đạo hàm khảo sát đồ thị hàm số',
+    fileName: 'Slide_Bai_giang_Ung_dung_dao_ham.pptx',
+    fileSize: '5.8 MB',
+    fileType: 'pptx' as const,
+    uploadedBy: 'ThS. Trần Thị Giáo Viên',
+    uploadedAt: '20/10/2026',
+    downloadCount: 38,
+  },
+  {
+    id: 'mat-03',
+    classId: 'class-web-01',
+    title: 'Tài liệu Tóm tắt Công thức & Dạng toán trắc nghiệm nhanh',
+    fileName: 'Tom_tat_cong_thuc_toan_12_nhanh.docx',
+    fileSize: '1.2 MB',
+    fileType: 'docx' as const,
+    uploadedBy: 'ThS. Trần Thị Giáo Viên',
+    uploadedAt: '18/10/2026',
+    downloadCount: 51,
+  },
+];

@@ -22,6 +22,8 @@ export const SettingsPage = () => {
   const [user, setUser] = useState<UserProfile>(getCurrentUser());
   const [fullName, setFullName] = useState(user.fullName);
   const [school, setSchool] = useState(user.school || '');
+  const [department, setDepartment] = useState(user.department || '');
+  const [code, setCode] = useState(user.teacherCode || user.studentCode || '');
   const [avatarColor, setAvatarColor] = useState(user.avatarColor || 'from-indigo-600 to-violet-600');
   const [saveProfileSuccess, setSaveProfileSuccess] = useState(false);
 
@@ -40,6 +42,8 @@ export const SettingsPage = () => {
     setUser(cur);
     setFullName(cur.fullName);
     setSchool(cur.school || '');
+    setDepartment(cur.department || '');
+    setCode(cur.teacherCode || cur.studentCode || '');
     setAvatarColor(cur.avatarColor || 'from-indigo-600 to-violet-600');
     setApiKey(getStoredApiKey());
   }, []);
@@ -50,6 +54,9 @@ export const SettingsPage = () => {
     const updated = updateCurrentUser({
       fullName: fullName.trim(),
       school: school.trim(),
+      department: department.trim(),
+      teacherCode: user.role === 'teacher' ? code.trim() : undefined,
+      studentCode: user.role === 'student' ? code.trim() : undefined,
       avatarColor,
     });
     setUser(updated);
@@ -189,15 +196,63 @@ export const SettingsPage = () => {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700">Trường học / Đơn vị đào tạo</label>
-            <input
-              type="text"
-              value={school}
-              onChange={(e) => setSchool(e.target.value)}
-              placeholder="VD: Đại học Quốc gia TP.HCM, Học viện Bưu chính Viễn thông..."
-              className="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Trường học / Đơn vị đào tạo</label>
+              <input
+                type="text"
+                value={school}
+                onChange={(e) => setSchool(e.target.value)}
+                placeholder="VD: THPT Chuyên Lê Hồng Phong"
+                className="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                {user.role === 'teacher' ? 'Tổ / Bộ môn chuyên môn' : 'Khối lớp / Ngành học'}
+              </label>
+              <input
+                type="text"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="VD: Tổ Toán - Tin học hoặc Lớp 12A1"
+                className="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                {user.role === 'teacher' ? 'Mã cán bộ / Giáo viên' : 'Mã số học sinh / sinh viên'}
+              </label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="VD: GV-TOAN-014 hoặc HS-2026-0812"
+                className="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Vai trò & Quyền hạn</label>
+              <div className="px-3.5 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 font-bold text-slate-700 flex items-center justify-between">
+                <span>
+                  {user.role === 'teacher'
+                    ? '👨‍🏫 Giáo viên / Giảng viên'
+                    : user.role === 'school_admin'
+                    ? '🏫 Ban Giám Hiệu'
+                    : user.role === 'system_admin'
+                    ? '⚙️ Quản trị Toàn hệ thống'
+                    : '🎓 Học sinh / Sinh viên'}
+                </span>
+                <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                  ✓ Đã kích hoạt
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">

@@ -72,20 +72,64 @@ export interface UserStats {
   studyStreakDays: number;
 }
 
-// ==================== HỌC SINH - GIÁO VIÊN & LỚP HỌC ====================
+// ==================== HỌC SINH - GIÁO VIÊN - QUẢN TRỊ TRƯỜNG HỌC ====================
 
-export type UserRole = 'student' | 'teacher';
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'system_admin';
+
+export interface School {
+  id: string;
+  code: string;
+  name: string;
+  level: 'high_school' | 'secondary_school' | 'university' | 'college';
+  address: string;
+  phone: string;
+  email: string;
+  teacherCount: number;
+  studentCount: number;
+  classCount: number;
+  status: 'active' | 'pending' | 'suspended';
+  createdAt: string;
+}
+
+export interface TeacherApprovalRequest {
+  id: string;
+  fullName: string;
+  email: string;
+  schoolName: string;
+  department: string; // Tổ chuyên môn (VD: Toán - Tin, Ngữ Văn, Tiếng Anh...)
+  teacherCode: string;
+  proofDocumentName?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  notes?: string;
+}
+
+export interface ClassMaterial {
+  id: string;
+  classId: string;
+  title: string;
+  fileName: string;
+  fileSize: string;
+  fileType: 'pdf' | 'docx' | 'pptx' | 'text';
+  uploadedBy: string;
+  uploadedAt: string;
+  downloadCount: number;
+}
 
 export interface Classroom {
   id: string;
   code: string; // Mã tham gia 6 ký tự, ví dụ: "UIT-8821"
   name: string;
   subject: string;
+  grade?: string; // Khối 10, Khối 11, Khối 12, ĐH...
+  academicYear?: string; // 2026-2027
   teacherId: string;
   teacherName: string;
   description: string;
   studentCount: number;
   studentIds: string[];
+  documentCount?: number;
+  materials?: ClassMaterial[];
   createdAt: string;
 }
 
@@ -127,11 +171,11 @@ export interface StudentSubmission {
 
 export interface AppNotification {
   id: string;
-  recipientRole: 'all' | 'teacher' | 'student';
+  recipientRole: 'all' | 'teacher' | 'student' | 'school_admin' | 'system_admin';
   recipientUserId?: string;
   title: string;
   message: string;
-  type: 'submission' | 'assignment' | 'violation' | 'info';
+  type: 'submission' | 'assignment' | 'violation' | 'approval' | 'info';
   createdAt: string;
   read: boolean;
   link?: string;

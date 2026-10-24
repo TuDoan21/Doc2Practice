@@ -12,7 +12,8 @@ import {
   Info
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
-import { loginUser } from '../services/auth';
+import { loginUser, loginAsDemoRole } from '../services/auth';
+import type { UserRole } from '../types';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ export const LoginPage = () => {
     if (!email.trim()) {
       newErrors.email = 'Vui lòng nhập địa chỉ email.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      newErrors.email = 'Địa chỉ email không đúng định dạng (ví dụ: student@gmail.com).';
+      newErrors.email = 'Địa chỉ email không đúng định dạng (ví dụ: student@lhp.edu.vn).';
     }
 
     if (!password) {
@@ -70,7 +71,7 @@ export const LoginPage = () => {
       setIsLoading(false);
       setLoginAlert({
         type: 'success',
-        message: 'Đăng nhập thành công! Đang chuyển hướng đến Bảng điều khiển...',
+        message: 'Đăng nhập thành công! Đang chuyển hướng đến Cổng Trường Học...',
       });
 
       setTimeout(() => {
@@ -80,19 +81,12 @@ export const LoginPage = () => {
   };
 
   // Nhanh tài khoản mẫu
-  const handleQuickDemoLogin = (role: 'student' | 'teacher' = 'student') => {
-    if (role === 'teacher') {
-      setEmail('giaovien.tran@uit.edu.vn');
-      setPassword('Demo@Teacher123');
-    } else {
-      setEmail('vanhoc.student@uit.edu.vn');
-      setPassword('Demo@123456');
-    }
+  const handleQuickDemoLogin = (role: UserRole = 'student') => {
     setErrors({});
     setIsLoading(true);
 
     setTimeout(() => {
-      loginUser(role === 'teacher' ? 'giaovien.tran@uit.edu.vn' : 'vanhoc.student@uit.edu.vn', role);
+      loginAsDemoRole(role);
       setIsLoading(false);
       navigate('/app/dashboard');
     }, 400);
@@ -143,24 +137,42 @@ export const LoginPage = () => {
         <div className="space-y-0.5">
           <div className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Tài khoản kiểm thử nhanh (1-Click Demo)</span>
+            <span>Cổng trường học — Đăng nhập nhanh kiểm thử</span>
           </div>
-          <p className="text-[11px] text-indigo-700/80">Chọn một trong hai vai trò để trải nghiệm luồng thực tế ngay lập tức:</p>
+          <p className="text-[11px] text-indigo-700/80">Chọn một trong 4 vai trò để trải nghiệm luồng thực tế ngay lập tức:</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => handleQuickDemoLogin('student')}
-            className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
+            className="py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-xs transition-all active:scale-95 text-left flex items-center gap-1.5"
           >
-            🎓 Học sinh (Làm bài)
+            <span>🎓</span>
+            <span className="truncate">Học sinh (Làm bài)</span>
           </button>
           <button
             type="button"
             onClick={() => handleQuickDemoLogin('teacher')}
-            className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
+            className="py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-all active:scale-95 text-left flex items-center gap-1.5"
           >
-            👨‍🏫 Giáo viên (Tạo lớp & Đề)
+            <span>👨‍🏫</span>
+            <span className="truncate">Giáo viên (Đề & Lớp)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickDemoLogin('school_admin')}
+            className="py-2 px-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-xs transition-all active:scale-95 text-left flex items-center gap-1.5"
+          >
+            <span>🏫</span>
+            <span className="truncate">Quản trị Trường</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickDemoLogin('system_admin')}
+            className="py-2 px-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[11px] shadow-xs transition-all active:scale-95 text-left flex items-center gap-1.5"
+          >
+            <span>⚙️</span>
+            <span className="truncate">Admin Hệ thống</span>
           </button>
         </div>
       </div>

@@ -32,9 +32,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     return () => window.removeEventListener('auth_state_changed', handleAuth);
   }, []);
 
+  const getRoleLabel = () => {
+    switch (currentUser.role) {
+      case 'teacher':
+        return { name: '👨‍🏫 Giáo viên', color: 'bg-emerald-100 text-emerald-800', desc: 'Có quyền tạo lớp, giao bài kiểm tra khóa tab và xem điểm học sinh.' };
+      case 'school_admin':
+        return { name: '🏫 Ban Giám Hiệu', color: 'bg-amber-100 text-amber-800', desc: 'Phê duyệt hồ sơ giáo viên, quản lý lớp học và khảo thí toàn trường.' };
+      case 'system_admin':
+        return { name: '⚙️ Quản trị HT', color: 'bg-purple-100 text-purple-800', desc: 'Quản trị hệ thống toàn quốc, đối tác trường học và giám sát hạ tầng.' };
+      default:
+        return { name: '🎓 Học sinh', color: 'bg-indigo-100 text-indigo-800', desc: 'Tham gia lớp của giáo viên và tự tải tài liệu để ôn tập.' };
+    }
+  };
+
+  const roleInfo = getRoleLabel();
+
+  const getClassNavLabel = () => {
+    if (currentUser.role === 'teacher') return 'Quản lý Lớp học';
+    if (currentUser.role === 'school_admin') return 'Lớp học & Phân công';
+    if (currentUser.role === 'system_admin') return 'Toàn bộ Lớp học';
+    return 'Lớp học của tôi';
+  };
+
   const navItems = [
     { label: 'Tổng quan', path: '/app/dashboard', icon: LayoutDashboard },
-    { label: currentUser.role === 'teacher' ? 'Quản lý Lớp học' : 'Lớp học của tôi', path: '/app/classes', icon: Users },
+    { label: getClassNavLabel(), path: '/app/classes', icon: Users },
     { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
     { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
     { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
@@ -106,16 +128,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="font-bold text-slate-800">Vai trò:</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-              currentUser.role === 'teacher' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
-            }`}>
-              {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${roleInfo.color}`}>
+              {roleInfo.name}
             </span>
           </div>
           <p className="text-slate-500 text-[11px] leading-relaxed">
-            {currentUser.role === 'teacher'
-              ? 'Có quyền tạo lớp, giao bài kiểm tra khóa tab và xem điểm học sinh.'
-              : 'Tham gia lớp của giáo viên và tự tải tài liệu để ôn tập.'}
+            {roleInfo.desc}
           </p>
         </div>
 

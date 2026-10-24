@@ -11,26 +11,45 @@ import {
   CheckCircle2,
   Check,
   ShieldCheck,
-  Info
+  Info,
+  School,
+  Clock,
+  Upload
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
-import { registerUser } from '../services/auth';
+import { registerStudent, submitTeacherApprovalRequest, loginAsDemoRole } from '../services/auth';
+import { mockSchools } from '../data/mockData';
+import type { TeacherApprovalRequest } from '../types';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
 
-  // Form fields
+  // Role toggle: 'student' | 'teacher'
+  const [role, setRole] = useState<'student' | 'teacher'>('student');
+
+  // Common Form fields
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [school, setSchool] = useState('THPT Chuyên Lê Hồng Phong (TP.HCM)');
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [role, setRole] = useState<'student' | 'teacher'>('student');
+
+  // Student specific fields
+  const [studentCode, setStudentCode] = useState('');
+
+  // Teacher specific fields
+  const [department, setDepartment] = useState('Tổ Toán - Tin học');
+  const [teacherCode, setTeacherCode] = useState('');
+  const [proofFileName, setProofFileName] = useState('');
 
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Teacher Pending Screen State
+  const [teacherPendingRequest, setTeacherPendingRequest] = useState<TeacherApprovalRequest | null>(null);
 
   // Errors & Alerts
   const [errors, setErrors] = useState<{
@@ -38,6 +57,9 @@ export const RegisterPage = () => {
     email?: string;
     password?: string;
     confirmPassword?: string;
+    school?: string;
+    department?: string;
+    teacherCode?: string;
     agreeTerms?: string;
   }>({});
   const [registerAlert, setRegisterAlert] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -78,7 +100,7 @@ export const RegisterPage = () => {
     if (!email.trim()) {
       newErrors.email = 'Vui lòng nhập địa chỉ email.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      newErrors.email = 'Địa chỉ email không đúng định dạng (ví dụ: student@gmail.com).';
+      newErrors.email = 'Địa chỉ email không đúng định dạng.';
     }
 
     if (!password) {
@@ -93,8 +115,17 @@ export const RegisterPage = () => {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp.';
     }
 
+    if (role === 'teacher') {
+      if (!teacherCode.trim()) {
+        newErrors.teacherCode = 'Vui lòng nhập mã giáo viên / mã cán bộ viên chức.';
+      }
+      if (!department.trim()) {
+        newErrors.department = 'Vui lòng chọn hoặc nhập tổ chuyên môn.';
+      }
+    }
+
     if (!agreeTerms) {
-      newErrors.agreeTerms = 'Bạn cần đồng ý với Điều khoản sử dụng và Chính sách bảo mật.';
+      newErrors.agreeTerms = 'Bạn cần đồng ý với Quy chế và Chính sách bảo mật học đường.';
     }
 
     setErrors(newErrors);
@@ -109,20 +140,111 @@ export const RegisterPage = () => {
 
     setIsLoading(true);
 
-    // Tạo tài khoản và lưu phiên người dùng
-    setTimeout(() => {
-      registerUser(fullName.trim(), email.trim(), role);
-      setIsLoading(false);
-      setRegisterAlert({
-        type: 'success',
-        message: 'Tạo tài khoản thành công! Đang chuyển đến Bảng điều khiển...',
-      });
-
+    if (role === 'student') {
+      // Học sinh được kích hoạt ngay lập tức
       setTimeout(() => {
-        navigate('/app/dashboard');
+        registerStudent({
+          fullName: fullName.trim(),
+          email: email.trim(),
+          school: school.trim(),
+          studentCode: studentCode.trim() || undefined,
+        });
+        setIsLoading(false);
+        setRegisterAlert({
+          type: 'success',
+          message: 'Đăng ký tài khoản học sinh thành công! Đang chuyển đến không gian học tập...',
+        });
+
+        setTimeout(() => {
+          navigate('/app/dashboard');
+        }, 800);
+      }, 600);
+    } else {
+      // Giáo viên: Tạo hồ sơ chờ duyệt (Pending Verification)
+      setTimeout(() => {
+        const req = submitTeacherApprovalRequest({
+          fullName: fullName.trim(),
+          email: email.trim(),
+          schoolName: school.trim(),
+          department: department.trim(),
+          teacherCode: teacherCode.trim(),
+          proofDocumentName: proofFileName || 'Minh_chung_su_pham.pdf',
+        });
+        setIsLoading(false);
+        setTeacherPendingRequest(req);
       }, 700);
-    }, 600);
+    }
   };
+
+  if (teacherPendingRequest) {
+    return (
+      <div className="space-y-6 animate-fadeIn text-center py-4">
+        <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-sm">
+          <Clock className="w-8 h-8 animate-pulse" />
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-bold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full">
+            Hồ sơ sư phạm đang chờ thẩm định
+          </span>
+          <h2 className="text-2xl font-black text-slate-900 pt-1">
+            Đã tiếp nhận hồ sơ đăng ký Giáo viên!
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+            Kính gửi thầy/cô <strong>{teacherPendingRequest.fullName}</strong>. Để đảm bảo an toàn và tính chính danh trong môi trường học đường, tài khoản giáo viên cần được Ban Giám Hiệu / Quản trị viên trường học phê duyệt trước khi kích hoạt quyền tạo lớp và đề thi.
+          </p>
+        </div>
+
+        {/* Detailed Application Card */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2.5 max-w-md mx-auto">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+            <span className="text-slate-500">Mã theo dõi hồ sơ:</span>
+            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{teacherPendingRequest.id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Trường công tác:</span>
+            <span className="font-semibold text-slate-800">{teacherPendingRequest.schoolName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Tổ chuyên môn:</span>
+            <span className="font-semibold text-slate-800">{teacherPendingRequest.department}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Mã cán bộ giáo viên:</span>
+            <span className="font-semibold text-slate-800">{teacherPendingRequest.teacherCode}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Tệp minh chứng đính kèm:</span>
+            <span className="font-medium text-slate-600 truncate max-w-[200px]">{teacherPendingRequest.proofDocumentName}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+            <span className="text-slate-500">Thời gian phản hồi dự kiến:</span>
+            <span className="text-emerald-700 font-bold">Trong vòng 24 giờ làm việc</span>
+          </div>
+        </div>
+
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              loginAsDemoRole('teacher');
+              navigate('/app/dashboard');
+            }}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
+          >
+            <span>Trải nghiệm ngay với tài khoản Giáo viên mẫu</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <Link
+            to="/login"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+          >
+            Về màn hình Đăng nhập
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -246,6 +368,121 @@ export const RegisterPage = () => {
             </p>
           )}
         </div>
+
+        {/* School Name */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+            Trường học / Cơ sở đào tạo
+          </label>
+          <div className="relative">
+            <School className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              list="school-suggestions"
+              value={school}
+              onChange={(e) => setSchool(e.target.value)}
+              placeholder="VD: THPT Chuyên Lê Hồng Phong"
+              className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+            />
+            <datalist id="school-suggestions">
+              {mockSchools.map((s) => (
+                <option key={s.id} value={s.name} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+
+        {/* Teacher Specific: Department, Teacher Code, Proof Document */}
+        {role === 'teacher' && (
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 space-y-3 animate-fadeIn">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Xác thực danh tính & Hồ sơ sư phạm</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 block">Tổ / Bộ môn chuyên môn *</label>
+                <select
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-emerald-600"
+                >
+                  <option value="Tổ Toán - Tin học">Tổ Toán - Tin học</option>
+                  <option value="Tổ Ngữ Văn">Tổ Ngữ Văn</option>
+                  <option value="Tổ Tiếng Anh / Ngoại ngữ">Tổ Tiếng Anh / Ngoại ngữ</option>
+                  <option value="Tổ Vật Lý - Hóa Học - Sinh Học">Tổ KHTN (Lý - Hóa - Sinh)</option>
+                  <option value="Tổ Lịch Sử - Địa Lý - GDCD">Tổ KHXH (Sử - Địa - GDCD)</option>
+                  <option value="Bộ môn Chuyên ngành CNTT">Bộ môn Chuyên ngành CNTT</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 block">Mã cán bộ / Giáo viên *</label>
+                <input
+                  type="text"
+                  value={teacherCode}
+                  onChange={(e) => {
+                    setTeacherCode(e.target.value);
+                    if (errors.teacherCode) setErrors((prev) => ({ ...prev, teacherCode: undefined }));
+                  }}
+                  placeholder="VD: GV-TOAN-014"
+                  className={`w-full px-3 py-2 text-xs bg-white border rounded-xl focus:outline-none ${
+                    errors.teacherCode ? 'border-rose-400' : 'border-slate-200 focus:border-emerald-600'
+                  }`}
+                />
+                {errors.teacherCode && <p className="text-[10px] text-rose-600 font-medium">{errors.teacherCode}</p>}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Đính kèm minh chứng công tác (Thẻ viên chức / Quyết định phân công)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="proof-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setProofFileName(file.name);
+                  }}
+                />
+                <label
+                  htmlFor="proof-upload"
+                  className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Chọn tệp minh chứng</span>
+                </label>
+                <span className="text-xs text-slate-600 truncate max-w-[220px]">
+                  {proofFileName || 'The_can_bo_vien_chuc.pdf (mặc định)'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-emerald-800 leading-relaxed italic">
+              * Hồ sơ giáo viên sẽ được Ban Giám Hiệu trường phê duyệt thẩm định để đảm bảo an toàn học đường.
+            </p>
+          </div>
+        )}
+
+        {/* Student Specific: Grade / Class */}
+        {role === 'student' && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Khối lớp hoặc Mã học sinh (Tùy chọn)
+            </label>
+            <input
+              type="text"
+              value={studentCode}
+              onChange={(e) => setStudentCode(e.target.value)}
+              placeholder="VD: Lớp 12A1 hoặc HS-2026-0812"
+              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+        )}
 
         {/* Password */}
         <div className="space-y-1.5">
@@ -405,13 +642,19 @@ export const RegisterPage = () => {
         <button
           type="submit"
           disabled={isLoading || !agreeTerms}
-          className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-bold text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all flex items-center justify-center gap-2 mt-2"
+          className={`w-full py-3 rounded-xl disabled:cursor-not-allowed text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 mt-2 ${
+            role === 'teacher'
+              ? 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 shadow-emerald-100 hover:shadow-emerald-200'
+              : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 shadow-indigo-100 hover:shadow-indigo-200'
+          }`}
         >
           {isLoading ? (
             <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
           ) : (
             <>
-              <span>Tạo tài khoản miễn phí</span>
+              <span>
+                {role === 'teacher' ? 'Gửi hồ sơ đăng ký Giáo viên (Chờ phê duyệt)' : 'Đăng ký tài khoản Học sinh ngay'}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}
