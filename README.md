@@ -1,169 +1,154 @@
-<<<<<<< HEAD
 # 📚 Doc2Practice — AI-Powered Learning Platform
 > **Slogan:** *“Từ tài liệu đến thành thạo.”*
 
-**Doc2Practice** là nền tảng web hiện đại giúp người dùng chuyển đổi tài liệu học tập (PDF, giáo trình, bài giảng) thành các bài trắc nghiệm thông minh, flashcard lật thẻ 3D và theo dõi tiến độ ôn tập một cách chủ động (Active Recall & Spaced Repetition).
+**Doc2Practice** là nền tảng học tập thông minh toàn diện, giúp học sinh, sinh viên và người tự học biến mọi tài liệu học tập (**PDF, Word .docx, PowerPoint .pptx, ghi chú văn bản**) thành các bộ đề thi trắc nghiệm 4 phương án, thẻ flashcard lật 3D tương tác và theo dõi tiến độ học tập một cách trực quan, khoa học.
 
 ---
 
-## 🚀 Công nghệ sử dụng
-- **Core Frontend:** React 19 + TypeScript + Vite
-- **Styling:** Tailwind CSS (bảng màu Indigo / Modern SaaS)
-- **Biểu đồ & Thống kê:** Recharts
-- **Icon hệ thống:** Lucide Icons
-- **Hiệu ứng trực quan:** Canvas Confetti khi nộp bài điểm cao
-- **Lưu trữ dữ liệu MVP:** LocalStorage Persistence Engine (sẵn sàng kết nối Supabase Backend & Gemini API)
+## 🌟 Tính Năng Nổi Bật
+
+### 1. 🤖 AI Sinh Câu Hỏi & Flashcard Kép
+- **Tích hợp Google Gemini 1.5 Flash (BYOK - Bring Your Own Key):** Hỗ trợ nhập và kiểm tra kết nối API Key trực tiếp ngay tại trang Cài đặt.
+- **Hệ thống tạo đề Semantic Offline Fallback:** Khi chưa có API Key, hệ thống tự động sử dụng bộ phân tích từ khóa chuyên sâu để tạo bộ câu hỏi chất lượng cao từ tài liệu học thuật thực tế mà không bị gián đoạn.
+- **Tạo đồng thời 2 công cụ học tập:** Mỗi lần tạo đề sẽ sinh ra cả **Bộ trắc nghiệm chấm điểm** và **Bộ Flashcard ôn tập**.
+
+### 2. 📂 Hỗ Trợ Đa Định Dạng & Nhập Văn Bản Trực Tiếp
+- **Kéo thả / Chọn tệp:** Hỗ trợ đầy đủ **PDF (`.pdf`)**, **Word (`.docx, .doc`)**, **PowerPoint (`.pptx, .ppt`)**, file text/markdown lên tới 30MB.
+- **Nhập nhanh bài giảng / ghi chú:** Chuyển sang tab **"Dán nội dung văn bản"** để dán trực tiếp đoạn tóm tắt bài học, đề cương hoặc nội dung bài giảng.
+- **Kho tài liệu mẫu sẵn có:** Có sẵn các file mẫu về *React & TypeScript*, *Lập trình Web*, *Tiếng Anh TOEIC* để trải nghiệm tức thì.
+
+### 3. 🎯 Phòng Luyện Thi Chuyên Nghiệp (Quiz Simulator)
+- **Đồng hồ đếm thời gian thực** (Real-time timer).
+- **Thanh tiến độ & Đánh dấu câu hỏi (Bookmark):** Đánh dấu câu hỏi cần xem lại và di chuyển nhanh qua thanh điều hướng 20 ô số.
+- **Xác nhận nộp bài:** Cảnh báo các câu chưa trả lời.
+- **Màn hình tổng kết điểm & Hiệu ứng ăn mừng (Confetti):** Thưởng hiệu ứng pháo hoa khi đạt kết quả xuất sắc.
+- **Chế độ "Luyện lại chỉ các câu sai":** Tự động lọc các câu làm sai để luyện tập lại ngay lập tức (Targeted Remediation).
+- **In ấn & Xuất đề thi:** Nút In phiếu kết quả bài thi hoặc đề thi ra PDF/máy in.
+
+### 4. 🎴 Thẻ Ghi Nhớ Flashcard 3D Thông Minh
+- **Hiệu ứng lật thẻ 3D mượt mà** với mặt trước (Khái niệm/Thuật ngữ) và mặt sau (Giải thích chi tiết & Ví dụ).
+- **Hỗ trợ phím tắt tiện lợi:**
+  - `Space`: Lật thẻ
+  - `Phím mũi tên phải (→)`: Thẻ kế tiếp
+  - `Phím mũi tên trái (←)`: Thẻ trước đó
+- **Trộn thẻ ngẫu nhiên (Shuffle)** và **Tự động chạy (Auto-play)** giúp ôn bài rảnh tay.
+- **Theo dõi Spaced Repetition:** Phân loại thẻ thành *Đã nhớ* và *Cần ôn lại*, hiển thị thanh tiến độ ghi nhớ theo thời gian thực.
+- **Quản lý bộ thẻ:** Thêm thẻ ghi nhớ mới tùy chỉnh hoặc xóa thẻ khỏi bộ.
+
+### 5. 📊 Bảng Thống Kê & Lịch Sử Luyện Tập
+- **Dashboard trực quan:** 4 chỉ số cốt lõi (Tài liệu, Bộ câu hỏi, Câu đã làm, Điểm trung bình).
+- **Biểu đồ hoạt động 7 ngày (Recharts AreaChart):** Theo dõi tần suất học và biến thiên điểm số.
+- **Lịch sử làm bài chi tiết:** Xem lại từng lượt thi, số câu đúng/sai, thời gian làm và mở modal xem lại chi tiết từng câu.
+
+### 6. 🔐 Quản Lý Hồ Sơ & Xác Thực Người Dùng
+- **Đăng nhập (`/login`) & Đăng ký (`/register`):** Thiết kế 2 cột chuẩn SaaS hiện đại, kiểm tra email/mật khẩu, thanh đo độ mạnh mật khẩu và modal điều khoản bảo mật.
+- **Cơ chế 1-Click Demo:** Đăng nhập tức thì chỉ với một thao tác.
+- **Hồ sơ cá nhân (`/app/settings`):** Tùy chỉnh Họ tên, Trường/Tổ chức và chọn 5 bảng màu avatar gradient sang trọng.
+- **Đăng xuất an toàn:** Modal xác nhận đăng xuất có mặt ở cả Header và Sidebar.
 
 ---
 
-## 🎯 Các trang và chức năng đã hoàn thành
+## 🛠️ Công Nghệ Sử Dụng
 
-### 1. Landing Page (`/`)
-- **Hero Section:** Tiêu đề ấn tượng *“Biến tài liệu thành bài luyện tập của riêng bạn”*, slogan, các chỉ số cốt lõi và nút CTA điều hướng.
-- **Xem trước tương tác (App Mockup):** Minh họa trực quan câu hỏi trắc nghiệm sinh ra từ tài liệu.
-- **Quy trình 4 bước:** *Tải tài liệu PDF → Tạo câu hỏi → Luyện tập & Thi thử → Theo dõi tiến độ*.
-- **Tính năng nổi bật:** Trắc nghiệm phân loại, Flashcard 3D, giải thích chi tiết từng câu.
-- **Thanh điều hướng & Footer:** Đầy đủ liên kết và thông tin bản quyền.
-
-### 2. Dashboard tổng quan (`/app/dashboard`)
-- **4 Thẻ thống kê động:** Số tài liệu đã lưu, số bộ câu hỏi, tổng số câu đã làm, điểm trung bình.
-- **Biểu đồ tiến độ (Recharts):** Biểu đồ AreaChart trực quan thể hiện tần suất luyện tập và điểm số trong 7 ngày qua.
-- **Danh sách gần đây:** Các bộ câu hỏi gần nhất kèm điểm thi và danh sách tài liệu PDF đã nạp.
-- **Thao tác nhanh:** Nút nổi bật *“Tạo bộ câu hỏi mới”* mở modal hoặc chuyển trang.
-
-### 3. Tạo bộ câu hỏi (`/app/create-quiz`)
-- **Kéo thả / Chọn tệp đa định dạng:** Hỗ trợ đầy đủ **PDF (.pdf)**, tài liệu **Word (.docx, .doc)** và slide thuyết trình **PowerPoint (.pptx, .ppt)** với dung lượng lên đến 30MB.
-- **Hỗ trợ chọn file mẫu nhanh:** Có sẵn các tài liệu mẫu gồm PDF, Word và PowerPoint để test ngay lập tức mà không cần chuẩn bị file.
-- **Cấu hình bài luyện tập:**
-  - Chọn số câu hỏi: **5, 10, 20 câu**.
-  - Chọn mức độ khó: **Dễ, Trung bình, Khó**.
-  - Chọn dạng câu hỏi: **Trắc nghiệm 4 đáp án**.
-- **Mô phỏng AI trực quan:** Hiển thị từng bước xử lý (*Tải lên → Đọc tài liệu PDF/Word/PowerPoint → Trích xuất kiến thức → Sinh câu hỏi kèm giải thích*) và ghi chú rõ ràng đây là bản Demo Preview.
-- **Kết quả:** Tự động tạo bộ đề và chuyển hướng sang làm bài ngay lập tức.
-
-### 4. Trang làm bài trắc nghiệm (`/app/quiz/:id`)
-- **Giao diện thi chuyên nghiệp:** Đồng hồ đếm thời gian, thanh tiến độ hoàn thành, thanh nhảy nhanh đến câu hỏi bất kỳ.
-- **Câu hỏi & 4 phương án (A, B, C, D):** Trạng thái chọn rõ ràng, cho phép chuyển câu Trước / Tiếp theo.
-- **Nộp bài & Modal xác nhận:** Cảnh báo nếu còn câu hỏi chưa chọn đáp án.
-- **Màn hình kết quả tổng kết:**
-  - Thẻ điểm số tổng quan kèm pháo hoa chúc mừng nếu đạt điểm cao (≥ 80%).
-  - **Bộ lọc thông minh:** Xem tất cả / Chỉ xem câu sai / Chỉ xem câu đúng.
-  - **Chi tiết từng câu:** Hiển thị đáp án đã chọn, đáp án chính xác (highlight xanh) và **hộp giải thích chi tiết** lý do đúng/sai.
-  - Nút *“Làm lại bài này”* hoặc *“Về danh sách đề thi”*.
-
-### 5. Kho bộ câu hỏi (`/app/quiz-sets`)
-- Hiển thị danh sách bộ câu hỏi dạng thẻ card với đầy đủ thông tin: Tên đề, tài liệu nguồn, số câu, độ khó, điểm thi gần nhất.
-- **Tìm kiếm & Bộ lọc:** Tìm kiếm thời gian thực theo từ khóa, lọc theo độ khó, sắp xếp theo *Mới nhất / Điểm cao / Số câu hỏi*.
-- **Modal xem trước:** Cho phép xem danh sách tất cả các câu hỏi trong đề trước khi làm bài.
-
-### 6. Thẻ Flashcard ghi nhớ (`/app/flashcards`)
-- Giao diện thẻ 3D lật mặt trước (khái niệm/câu hỏi) và mặt sau (định nghĩa/ví dụ).
-- **Đánh giá mức độ nhớ:** Nút *“Chưa nhớ”* và *“Đã nhớ”* cập nhật ngay thanh tiến độ ghi nhớ.
-- **Chuyển đổi bộ thẻ:** Dễ dàng đổi qua lại giữa các chủ đề học tập.
-- **Hỗ trợ phím tắt:**
-  - Phím <kbd>Space</kbd>: Lật thẻ
-  - Phím <kbd>→</kbd>: Thẻ tiếp theo
-  - Phím <kbd>←</kbd>: Thẻ trước đó
-
-### 7. Quản lý tài liệu (`/app/documents`) & Lịch sử (`/app/history`)
-- Quản lý các file tài liệu đã tải, tạo đề thi mới trực tiếp từ tài liệu chỉ với 1 click.
-- Lịch sử ghi lại từng lượt thi, số câu đúng, thời gian làm và điểm số tích lũy.
-
-### 8. Xác thực người dùng (`/login` & `/register`)
-- **Bố cục 2 cột SaaS hiện đại:**
-  - Bên trái: Biểu mẫu đăng nhập / đăng ký tối giản, sạch sẽ.
-  - Bên phải: Khu vực minh họa *“Biến tài liệu thành lợi thế học tập”* với 3 lợi ích cốt lõi và thẻ kết quả học tập.
-- **Trang Đăng nhập (`/login`):** Email, mật khẩu (nút hiện/ẩn mật khẩu), checkbox ghi nhớ, modal khôi phục mật khẩu, nút đăng nhập nhanh 1-Click Demo và nút Google OAuth kèm trạng thái thông báo.
-- **Trang Đăng ký (`/register`):** Họ tên, email, mật khẩu, xác nhận mật khẩu, thanh đo độ mạnh mật khẩu trực quan kèm checklist tiêu chí, checkbox cam kết Điều khoản & Quyền riêng tư (có modal xem tóm tắt).
-- **Validation toàn diện bằng tiếng Việt:** Kiểm tra định dạng email, độ dài mật khẩu, khớp mật khẩu và ngăn gửi form khi chưa đồng ý điều khoản.
-
-### 9. Cài đặt hệ thống (`/app/settings`)
-- Cấu hình thông tin người học, trường nhập Gemini API Key (sẵn sàng cho chế độ BYOK - Bring Your Own Key).
-- Nút *“Đặt lại toàn bộ dữ liệu mẫu”* giúp khôi phục hệ thống về trạng thái ban đầu bất cứ lúc nào.
+| Hạng mục | Công nghệ |
+| :--- | :--- |
+| **Framework** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) |
+| **Build Tool** | [Vite 8](https://vitejs.dev/) |
+| **Styling** | [Tailwind CSS v3](https://tailwindcss.com/) (Indigo SaaS theme) |
+| **Icons** | [Lucide React](https://lucide.dev/) |
+| **Biểu đồ** | [Recharts](https://recharts.org/) |
+| **Hiệu ứng** | [canvas-confetti](https://www.npmjs.com/package/canvas-confetti) |
+| **Định tuyến** | [React Router DOM v7](https://reactrouter.com/) |
+| **AI Integration** | Google Gemini 1.5 Flash REST API Client + Semantic Offline Parser |
+| **Persistence** | LocalStorage Engine v2 với Event Bus đồng bộ realtime |
 
 ---
 
-## 💻 Hướng dẫn cài đặt và chạy trên máy Local
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
-### Yêu cầu môi trường
-- **Node.js:** Phiên bản 18+ (khuyên dùng Node 20 hoặc 24)
-- **Trình quản lý gói:** `npm`
+### Yêu cầu tiên quyết
+- **Node.js:** Phiên bản 18 trở lên (khuyên dùng Node 20 hoặc 24 LTS).
+- **NPM:** Đi kèm sẵn với Node.js.
 
-### Các bước thực hiện
+### 1. Mở terminal tại thư mục dự án
+```powershell
+cd d:\Doc2Practice
+```
 
-1. **Mở terminal tại thư mục dự án:**
-   ```bash
-   cd d:\Doc2Practice
-   ```
+### 2. Cài đặt thư viện phụ thuộc (nếu chưa có)
+```powershell
+npm.cmd install
+```
 
-2. **Cài đặt các gói phụ thuộc (nếu chưa cài):**
-   ```bash
-   npm install
-   ```
+### 3. Khởi chạy máy chủ phát triển (Development)
+```powershell
+npm.cmd run dev
+```
+> Truy cập trình duyệt tại địa chỉ: `http://localhost:5173/`
 
-3. **Chạy ứng dụng ở môi trường phát triển (Development):**
-   ```bash
-   npm run dev
-   ```
-   Ứng dụng sẽ khởi chạy tại: `http://localhost:5173/`
-
-4. **Kiểm tra bản build sản phẩm (Production Build):**
-   ```bash
-   npm run build
-   npm run preview
-   ```
+### 4. Kiểm tra bản build sản xuất (Production Build)
+```powershell
+npm.cmd run build
+npm.cmd run preview
+```
 
 ---
 
-## 🧭 Cấu trúc mã nguồn
+## 📂 Cấu Trúc Mã Nguồn
 
 ```
 d:\Doc2Practice\
 ├── src\
-│   ├── assets\             # Hình ảnh & SVG assets
 │   ├── components\
-│   │   ├── common\         # Navbar, Footer, Sidebar, Header, Modal, Badge, EmptyState
-│   │   └── layouts\        # PublicLayout, AppLayout
+│   │   ├── common\           # Navbar, Footer, Sidebar, Header, Modal, Badge, EmptyState
+│   │   └── layouts\          # AppLayout, AuthLayout, PublicLayout
 │   ├── data\
-│   │   └── mockData.ts     # Dữ liệu mẫu chuẩn về CNTT, Quản trị, Tiếng Anh
+│   │   └── mockData.ts       # Dữ liệu hạt giống chuẩn (PDF, DOCX, PPTX, câu hỏi, flashcard)
 │   ├── pages\
-│   │   ├── LandingPage.tsx     # Trang chủ giới thiệu
-│   │   ├── DashboardPage.tsx   # Tổng quan & Biểu đồ tiến độ
-│   │   ├── CreateQuizPage.tsx  # Tải PDF & Cấu hình sinh câu hỏi
-│   │   ├── QuizPlayerPage.tsx  # Giao diện làm bài thi & Xem giải thích
-│   │   ├── QuizSetsPage.tsx    # Kho bộ câu hỏi & Bộ lọc
-│   │   ├── FlashcardPage.tsx   # Ôn tập thẻ Flashcard 3D
-│   │   ├── DocumentsPage.tsx   # Danh sách tài liệu PDF
-│   │   ├── HistoryPage.tsx     # Lịch sử bài làm
-│   │   └── SettingsPage.tsx    # Cài đặt & Khôi phục dữ liệu
+│   │   ├── LandingPage.tsx   # Trang giới thiệu công khai
+│   │   ├── LoginPage.tsx     # Đăng nhập & 1-Click Demo
+│   │   ├── RegisterPage.tsx  # Đăng ký tài khoản với thanh đo mật khẩu
+│   │   ├── DashboardPage.tsx # Bảng điều khiển & Biểu đồ tiến độ Recharts
+│   │   ├── CreateQuizPage.tsx# Tải tệp (PDF/DOCX/PPTX) hoặc dán văn bản để sinh đề
+│   │   ├── QuizPlayerPage.tsx# Phòng thi: đồng hồ, bookmark, chấm điểm, giải thích, luyện lại câu sai
+│   │   ├── QuizSetsPage.tsx  # Quản lý kho đề thi: lọc, tìm kiếm, in ấn, xem trước
+│   │   ├── FlashcardPage.tsx # Lật thẻ 3D, auto-play, shuffle, spaced repetition
+│   │   ├── DocumentsPage.tsx # Quản lý tài liệu nguồn: PDF, Word, PowerPoint
+│   │   ├── HistoryPage.tsx   # Lịch sử bài làm & phân tích chi tiết từng lần thi
+│   │   └── SettingsPage.tsx  # Hồ sơ người dùng, cấu hình Gemini API Key & Reset hệ thống
 │   ├── services\
-│   │   └── storage.ts      # Quản lý LocalStorage & Engine mô phỏng sinh câu hỏi
+│   │   ├── aiService.ts      # Client Google Gemini 1.5 Flash + Semantic Generator
+│   │   ├── auth.ts           # Quản lý phiên đăng nhập/đăng ký & avatar
+│   │   └── storage.ts        # Storage CRUD engine cho documents, quiz, flashcards, attempts
 │   ├── types\
-│   │   └── index.ts        # TypeScript Interfaces & Types
-│   ├── App.tsx             # Định tuyến React Router
-│   ├── index.css           # Cấu hình Tailwind directives & hiệu ứng 3D
-│   └── main.tsx            # Entry point
-├── tailwind.config.js      # Cấu hình giao diện & theme màu Indigo
-├── package.json
+│   │   └── index.ts          # TypeScript Data Contracts
+│   ├── App.tsx               # Cấu hình routes React Router
+│   ├── main.tsx              # Entry Point
+│   └── index.css             # Tailwind directives & CSS 3D Transforms
+├── tailwind.config.js
+├── vite.config.ts
+├── tsconfig.json
 └── README.md
 ```
 
 ---
 
-## 🔮 Lộ trình phát triển tiếp theo (Next Steps)
-1. **Kết nối Google Gemini API:** Thay thế hàm mô phỏng trong `storage.ts` bằng endpoint backend gọi Gemini 1.5 Flash / Pro để phân tích trực tiếp văn bản PDF.
-2. **Tích hợp Supabase:**
-   - Supabase Auth: Đăng nhập Google / Email.
-   - Supabase Storage: Lưu trữ file PDF an toàn trên cloud bucket.
-   - Supabase Database: Lưu trữ bảng `documents`, `quiz_sets`, `questions`, `attempts`.
+## 💡 Hướng Dẫn Sử Dụng Nhanh
 
-## 🔮 Lộ trình phát triển tiếp theo (Next Steps)
-1. **Kết nối Google Gemini API:** Thay thế hàm mô phỏng trong `storage.ts` bằng endpoint backend gọi Gemini 1.5 Flash / Pro để phân tích trực tiếp văn bản PDF.
-2. **Tích hợp Supabase:**
-   - Supabase Auth: Đăng nhập Google / Email.
-   - Supabase Storage: Lưu trữ file PDF an toàn trên cloud bucket.
-   - Supabase Database: Lưu trữ bảng `documents`, `quiz_sets`, `questions`, `attempts`.
+1. **Khám phá ứng dụng:** Truy cập trang chủ `/` và nhấn **"Bắt đầu học ngay"** hoặc **"Đăng nhập"**.
+2. **Đăng nhập nhanh:** Tại màn hình đăng nhập, nhấn nút **"Đăng nhập nhanh bằng tài khoản mẫu"** để vào ngay Bảng điều khiển.
+3. **Tạo bài kiểm tra mới:**
+   - Vào menu **Tạo câu hỏi**.
+   - Chọn tải tệp (`.pdf`, `.docx`, `.pptx`) hoặc bấm tab **"Dán nội dung văn bản"** để paste bài học.
+   - Chọn số lượng câu (5, 10, 20), độ khó rồi bấm **"Bắt đầu phân tích & Sinh câu hỏi"**.
+4. **Luyện thi:**
+   - Chọn đáp án cho từng câu, dùng nút **"Đánh dấu"** với các câu phân vân.
+   - Bấm **"Nộp bài"** để xem ngay điểm số, hiệu ứng pháo hoa, đáp án và giải thích chi tiết.
+   - Nếu có câu sai, bấm **"Luyện lại chỉ các câu sai"** để củng cố ngay kiến thức hổng.
+5. **Kích hoạt Gemini AI thật (Tùy chọn):**
+   - Vào menu **Cài đặt** -> mục **Google Gemini API Key**.
+   - Nhập API Key của bạn (miễn phí từ Google AI Studio) và bấm **"Kiểm tra kết nối"** -> **"Lưu API Key"**.
+   - Mọi lượt tạo câu hỏi tiếp theo sẽ được xử lý trực tiếp bởi mô hình Gemini 1.5 Flash!
 
-=======
-# Doc2Practice
->>>>>>> 1694563a14fe2dd348655df41f77eaf9af78484f
+---
+© 2026 **Doc2Practice** — Nền tảng học tập thông minh từ tài liệu của bạn.

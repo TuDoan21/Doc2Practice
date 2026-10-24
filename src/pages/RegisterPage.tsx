@@ -14,6 +14,7 @@ import {
   Info
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { registerUser } from '../services/auth';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -107,8 +108,9 @@ export const RegisterPage = () => {
 
     setIsLoading(true);
 
-    // Mô phỏng quá trình tạo tài khoản
+    // Tạo tài khoản và lưu phiên người dùng
     setTimeout(() => {
+      registerUser(fullName.trim(), email.trim());
       setIsLoading(false);
       setRegisterAlert({
         type: 'success',
@@ -117,8 +119,8 @@ export const RegisterPage = () => {
 
       setTimeout(() => {
         navigate('/app/dashboard');
-      }, 1000);
-    }, 900);
+      }, 700);
+    }, 600);
   };
 
   return (

@@ -6,9 +6,14 @@ import {
   Calendar,
   Play,
   Eye,
-  PlusCircle
+  PlusCircle,
+  Trash2,
+  Printer,
+  Edit3,
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
-import { getQuizSets } from '../services/storage';
+import { getQuizSets, deleteQuizSet, saveQuizSet } from '../services/storage';
 import type { QuizSet, DifficultyLevel } from '../types';
 import { DifficultyBadge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
@@ -21,20 +26,62 @@ export const QuizSetsPage = () => {
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyLevel>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'score' | 'questions'>('newest');
 
-  // Preview Modal
+  // Modals
   const [previewingQuiz, setPreviewingQuiz] = useState<QuizSet | null>(null);
+  const [deletingQuiz, setDeletingQuiz] = useState<QuizSet | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<QuizSet | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+
+  const refreshList = () => {
+    setQuizSets(getQuizSets());
+  };
 
   useEffect(() => {
-    setQuizSets(getQuizSets());
+    refreshList();
   }, []);
 
-  // Update searchQuery if url param changes
   useEffect(() => {
     const q = searchParams.get('q');
     if (q !== null) {
       setSearchQuery(q);
     }
   }, [searchParams]);
+
+  // Xóa bộ câu hỏi
+  const handleDeleteConfirm = () => {
+    if (!deletingQuiz) return;
+    deleteQuizSet(deletingQuiz.id);
+    setDeletingQuiz(null);
+    refreshList();
+  };
+
+  // Mở modal sửa
+  const handleOpenEdit = (quiz: QuizSet) => {
+    setEditingQuiz(quiz);
+    setEditTitle(quiz.title);
+    setEditDesc(quiz.description);
+  };
+
+  // Lưu sửa
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuiz || !editTitle.trim()) return;
+
+    const updated: QuizSet = {
+      ...editingQuiz,
+      title: editTitle.trim(),
+      description: editDesc.trim(),
+    };
+    saveQuizSet(updated);
+    setEditingQuiz(null);
+    refreshList();
+  };
+
+  // In đề thi (Print view)
+  const handlePrintExam = () => {
+    window.print();
+  };
 
   // Filter & Sort logic
   const filteredSets = useMemo(() => {
@@ -73,7 +120,7 @@ export const QuizSetsPage = () => {
             Kho bộ câu hỏi
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tổng hợp các bộ đề trắc nghiệm đã tạo từ tài liệu học tập.
+            Tổng hợp các bộ đề trắc nghiệm thông minh đã tạo từ tài liệu học tập.
           </p>
         </div>
 
@@ -96,7 +143,7 @@ export const QuizSetsPage = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm theo tiêu đề, tài liệu nguồn..."
-            className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
 
@@ -148,11 +195,29 @@ export const QuizSetsPage = () => {
                       {quiz.questionCount} câu hỏi
                     </span>
                   </div>
-                  {quiz.lastScore !== undefined && quiz.lastScore !== null && (
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Điểm: {quiz.lastScore}%
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {quiz.lastScore !== undefined && quiz.lastScore !== null && (
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        {quiz.lastScore}%
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(quiz)}
+                      className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                      title="Chỉnh sửa bộ đề"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingQuiz(quiz)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                      title="Xóa bộ đề"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <h3 className="font-bold text-slate-900 text-base leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
@@ -183,7 +248,7 @@ export const QuizSetsPage = () => {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-white text-xs font-semibold transition-colors"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Xem câu hỏi</span>
+                  <span>Xem đề thi</span>
                 </button>
 
                 <Link
@@ -206,36 +271,51 @@ export const QuizSetsPage = () => {
         />
       )}
 
-      {/* Preview Modal */}
+      {/* Preview & Print Modal */}
       <Modal
-        isOpen={!!previewingQuiz}
+        isOpen={Boolean(previewingQuiz)}
         onClose={() => setPreviewingQuiz(null)}
-        title={previewingQuiz ? `Xem trước: ${previewingQuiz.title}` : ''}
+        title={previewingQuiz ? `Đề thi: ${previewingQuiz.title}` : ''}
         maxWidth="xl"
       >
         {previewingQuiz && (
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="p-3 rounded-xl bg-slate-50 text-xs text-slate-600 space-y-1">
-              <p><span className="font-semibold text-slate-800">Tài liệu:</span> {previewingQuiz.sourceDocumentName}</p>
-              <p><span className="font-semibold text-slate-800">Mô tả:</span> {previewingQuiz.description}</p>
+          <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1 print:max-h-none">
+            {/* Header thông tin đề thi */}
+            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between gap-4">
+              <div className="text-xs text-indigo-950 space-y-1">
+                <p><span className="font-bold">Tài liệu:</span> {previewingQuiz.sourceDocumentName}</p>
+                <p><span className="font-bold">Số lượng:</span> {previewingQuiz.questions.length} câu hỏi • Mức độ: {previewingQuiz.difficulty}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handlePrintExam}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-slate-700 hover:text-indigo-600 border border-slate-200 text-xs font-bold shadow-sm transition-all hover:scale-105"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In đề thi</span>
+              </button>
             </div>
 
-            <div className="space-y-3">
+            {/* Danh sách câu hỏi */}
+            <div className="space-y-4">
               {previewingQuiz.questions.map((q, idx) => (
-                <div key={q.id} className="p-4 rounded-xl border border-slate-100 bg-white space-y-2">
-                  <div className="text-xs font-bold text-indigo-600">Câu {idx + 1}:</div>
-                  <p className="text-sm font-semibold text-slate-800">{q.question}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-600 pt-1">
+                <div key={q.id} className="p-4 rounded-2xl border border-slate-200/80 bg-white space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-xs font-bold text-slate-700">
+                      Câu {idx + 1}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 leading-relaxed">{q.question}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
                     {q.options.map((opt, oIdx) => (
                       <div
                         key={oIdx}
-                        className={`p-2 rounded-lg border ${
-                          oIdx === q.correctAnswerIndex
-                            ? 'border-emerald-300 bg-emerald-50/60 font-semibold text-emerald-900'
-                            : 'border-slate-100 bg-slate-50'
-                        }`}
+                        className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-slate-700 flex items-start gap-2"
                       >
-                        {String.fromCharCode(65 + oIdx)}. {opt}
+                        <span className="font-bold text-indigo-600 shrink-0">
+                          {String.fromCharCode(65 + oIdx)}.
+                        </span>
+                        <span>{opt}</span>
                       </div>
                     ))}
                   </div>
@@ -243,18 +323,134 @@ export const QuizSetsPage = () => {
               ))}
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            {/* Bảng đáp án & Giải thích ở cuối đề */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-3">
+              <div className="font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Bảng tra cứu đáp án & Lời giải:</span>
+              </div>
+              <div className="space-y-2">
+                {previewingQuiz.questions.map((q, idx) => (
+                  <div key={idx} className="pb-2 border-b border-slate-200/60 last:border-none">
+                    <div className="flex items-center gap-2 font-bold text-slate-800">
+                      <span>Câu {idx + 1}: Đáp án {String.fromCharCode(65 + q.correctAnswerIndex)}</span>
+                    </div>
+                    <p className="text-slate-500 mt-0.5 leading-relaxed">{q.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setPreviewingQuiz(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
+              >
+                Đóng
+              </button>
               <Link
                 to={`/app/quiz/${previewingQuiz.id}`}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm"
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all hover:scale-102 flex items-center gap-2"
               >
-                Bắt đầu làm bài thi
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Bắt đầu làm bài</span>
               </Link>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Modal Chỉnh sửa bộ đề */}
+      <Modal
+        isOpen={Boolean(editingQuiz)}
+        onClose={() => setEditingQuiz(null)}
+        title="Chỉnh sửa thông tin bộ câu hỏi"
+        maxWidth="md"
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Tiêu đề bộ đề
+            </label>
+            <input
+              type="text"
+              required
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Mô tả / Ghi chú
+            </label>
+            <textarea
+              rows={3}
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingQuiz(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm"
+            >
+              Lưu thay đổi
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Xác nhận Xóa bộ đề */}
+      <Modal
+        isOpen={Boolean(deletingQuiz)}
+        onClose={() => setDeletingQuiz(null)}
+        title="Xác nhận xóa bộ câu hỏi"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">Xóa bộ câu hỏi này?</h4>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Bộ đề <span className="font-semibold text-slate-800">{deletingQuiz?.title}</span> sẽ bị xóa vĩnh viễn khỏi danh sách luyện tập của bạn.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setDeletingQuiz(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteConfirm}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm"
+            >
+              Xóa bộ đề
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
-

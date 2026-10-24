@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Modal } from './Modal';
+import { getCurrentUser, logoutUser, type UserProfile } from '../../services/auth';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -22,12 +23,22 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const navigate = useNavigate();
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdowns when clicking outside
+  // Lắng nghe thay đổi tài khoản
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCurrentUser(getCurrentUser());
+    };
+    window.addEventListener('auth_state_changed', handleAuthChange);
+    return () => window.removeEventListener('auth_state_changed', handleAuthChange);
+  }, []);
+
+  // Đóng dropdown khi click bên ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -51,8 +62,15 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
     setShowUserMenu(false);
-    // Chuyển hướng về trang đăng nhập
+    logoutUser();
     navigate('/login');
+  };
+
+  // Lấy 2 chữ cái đầu làm avatar
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
   return (
@@ -117,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
                   </div>
                   <div className="text-xs">
                     <p className="font-semibold text-slate-800">Bộ câu hỏi sẵn sàng</p>
-                    <p className="text-slate-500 mt-0.5">Tài liệu React & TypeScript đã được tạo xong 5 câu.</p>
+                    <p className="text-slate-500 mt-0.5">Tài liệu đã được tạo xong câu hỏi ôn tập.</p>
                     <span className="text-[10px] text-slate-400">1 giờ trước</span>
                   </div>
                 </div>
@@ -136,28 +154,28 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
             aria-label="Menu người dùng"
           >
             <div className="relative">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white font-bold text-sm flex items-center justify-center shadow-sm">
-                VH
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${currentUser.avatarColor || 'from-indigo-600 to-violet-600'} text-white font-bold text-sm flex items-center justify-center shadow-sm`}>
+                {getInitials(currentUser.fullName)}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
             </div>
             <div className="hidden sm:block text-left">
-              <div className="text-xs font-bold text-slate-900 leading-tight">Văn Học</div>
-              <div className="text-[11px] text-slate-500">Người học chủ động</div>
+              <div className="text-xs font-bold text-slate-900 leading-tight">{currentUser.fullName}</div>
+              <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{currentUser.school || 'Sinh viên'}</div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
           </button>
 
           {/* User Menu Dropdown */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
               {/* Profile Card Header */}
               <div className="p-3 border-b border-slate-100 mb-1">
-                <p className="font-bold text-sm text-slate-900 leading-tight">Nguyễn Văn Học</p>
-                <p className="text-xs text-slate-500 truncate mt-0.5">vanhoc.student@uit.edu.vn</p>
+                <p className="font-bold text-sm text-slate-900 leading-tight">{currentUser.fullName}</p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">{currentUser.email}</p>
                 <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-200/60">
                   <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Tài khoản Demo MVP</span>
+                  <span>Tài khoản chính thức</span>
                 </div>
               </div>
 

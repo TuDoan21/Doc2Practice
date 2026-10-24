@@ -12,6 +12,7 @@ import {
   Info
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { loginUser } from '../services/auth';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -63,8 +64,9 @@ export const LoginPage = () => {
 
     setIsLoading(true);
 
-    // Mô phỏng quá trình xác thực
+    // Xác thực và lưu phiên đăng nhập
     setTimeout(() => {
+      loginUser(email.trim());
       setIsLoading(false);
       setLoginAlert({
         type: 'success',
@@ -73,8 +75,8 @@ export const LoginPage = () => {
 
       setTimeout(() => {
         navigate('/app/dashboard');
-      }, 1000);
-    }, 800);
+      }, 700);
+    }, 600);
   };
 
   // Nhanh tài khoản mẫu
@@ -85,9 +87,10 @@ export const LoginPage = () => {
     setIsLoading(true);
 
     setTimeout(() => {
+      loginUser('vanhoc.student@uit.edu.vn');
       setIsLoading(false);
       navigate('/app/dashboard');
-    }, 600);
+    }, 400);
   };
 
   const handleForgotPasswordSubmit = (e: React.FormEvent) => {

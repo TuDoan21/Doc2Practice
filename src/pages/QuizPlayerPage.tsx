@@ -11,10 +11,12 @@ import {
   RotateCcw,
   ListFilter,
   AlertTriangle,
-  Award
+  Award,
+  Bookmark,
+  Printer
 } from 'lucide-react';
 import { getQuizSetById, recordQuizAttempt } from '../services/storage';
-import type { QuizSet, QuizAttempt } from '../types';
+import type { QuizSet, QuizAttempt, Question } from '../types';
 import { Modal } from '../components/common/Modal';
 import { DifficultyBadge } from '../components/common/Badge';
 
@@ -23,8 +25,10 @@ export const QuizPlayerPage = () => {
   const navigate = useNavigate();
 
   const [quizSet, setQuizSet] = useState<QuizSet | null>(null);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'all' | 'incorrect' | 'correct'>('all');
@@ -32,15 +36,21 @@ export const QuizPlayerPage = () => {
   // Timer state
   const [secondsElapsed, setSecondsElapsed] = useState(0);
 
+  // Chế độ đang làm lại câu sai
+  const [isWrongOnlyMode, setIsWrongOnlyMode] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const found = getQuizSetById(id);
     if (found) {
       setQuizSet(found);
+      setActiveQuestions(found.questions);
       setCurrentIndex(0);
       setSelectedAnswers({});
+      setFlaggedQuestions({});
       setIsSubmitted(false);
       setSecondsElapsed(0);
+      setIsWrongOnlyMode(false);
     } else {
       navigate('/app/quiz-sets');
     }
@@ -63,16 +73,23 @@ export const QuizPlayerPage = () => {
     );
   }
 
-  const currentQuestion = quizSet.questions[currentIndex];
-  const totalQuestions = quizSet.questions.length;
+  const currentQuestion = activeQuestions[currentIndex];
+  const totalQuestions = activeQuestions.length;
   const answeredCount = Object.keys(selectedAnswers).length;
-  const progressPercent = Math.round((answeredCount / totalQuestions) * 100);
+  const progressPercent = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   const handleSelectOption = (optionIndex: number) => {
     if (isSubmitted) return;
     setSelectedAnswers((prev) => ({
       ...prev,
       [currentIndex]: optionIndex,
+    }));
+  };
+
+  const toggleFlagQuestion = (idx: number) => {
+    setFlaggedQuestions((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
     }));
   };
 
@@ -93,9 +110,8 @@ export const QuizPlayerPage = () => {
     setIsConfirmModalOpen(false);
     setIsSubmitted(true);
 
-    // Tính điểm
     let correctCount = 0;
-    const answerLogs = quizSet.questions.map((q, idx) => {
+    const answerLogs = activeQuestions.map((q, idx) => {
       const selected = selectedAnswers[idx] ?? -1;
       const isCorrect = selected === q.correctAnswerIndex;
       if (isCorrect) correctCount++;
@@ -108,11 +124,11 @@ export const QuizPlayerPage = () => {
 
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
 
-    // Lưu vào lịch sử & update stats
+    // Ghi nhận lần làm bài
     const attempt: QuizAttempt = {
       id: `att-${Date.now()}`,
       quizSetId: quizSet.id,
-      quizTitle: quizSet.title,
+      quizTitle: isWrongOnlyMode ? `${quizSet.title} (Ôn câu sai)` : quizSet.title,
       score: scorePercent,
       correctCount,
       totalQuestions,
@@ -122,43 +138,65 @@ export const QuizPlayerPage = () => {
     };
     recordQuizAttempt(attempt);
 
-    // Bắn confetti nếu điểm >= 80%
     if (scorePercent >= 80) {
       try {
         confetti({
-          particleCount: 80,
-          spread: 70,
+          particleCount: 90,
+          spread: 75,
           origin: { y: 0.6 },
         });
       } catch {
-        // Safe fallback
+        // ignore
       }
     }
   };
 
-  const handleRestart = () => {
+  // Làm lại từ đầu toàn bộ
+  const handleRestartAll = () => {
+    if (!quizSet) return;
+    setActiveQuestions(quizSet.questions);
     setSelectedAnswers({});
+    setFlaggedQuestions({});
     setIsSubmitted(false);
     setCurrentIndex(0);
     setSecondsElapsed(0);
     setReviewFilter('all');
+    setIsWrongOnlyMode(false);
   };
 
-  // Định dạng thời gian
+  // Luyện tập lại CHỈ các câu làm sai
+  const handleRetakeWrongOnly = () => {
+    const wrongQuestions = activeQuestions.filter((q, idx) => {
+      return selectedAnswers[idx] !== q.correctAnswerIndex;
+    });
+
+    if (wrongQuestions.length === 0) return;
+
+    setActiveQuestions(wrongQuestions);
+    setSelectedAnswers({});
+    setFlaggedQuestions({});
+    setIsSubmitted(false);
+    setCurrentIndex(0);
+    setSecondsElapsed(0);
+    setReviewFilter('all');
+    setIsWrongOnlyMode(true);
+  };
+
   const formatTime = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Tính kết quả sau khi nộp
-  const correctCount = quizSet.questions.reduce((acc, q, idx) => {
+  // Thống kê kết quả
+  const correctCount = activeQuestions.reduce((acc, q, idx) => {
     return selectedAnswers[idx] === q.correctAnswerIndex ? acc + 1 : acc;
   }, 0);
-  const scorePercent = Math.round((correctCount / totalQuestions) * 100);
+  const scorePercent = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
+  const incorrectCount = totalQuestions - correctCount;
 
-  // Bộ lọc xem lại
-  const filteredQuestionIndices = quizSet.questions
+  // Lọc câu hỏi ở chế độ xem lại
+  const filteredQuestionIndices = activeQuestions
     .map((q, idx) => ({ q, idx }))
     .filter(({ q, idx }) => {
       const isCorrect = selectedAnswers[idx] === q.correctAnswerIndex;
@@ -169,12 +207,17 @@ export const QuizPlayerPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16">
-      {/* Quiz Top Bar */}
+      {/* Top Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <DifficultyBadge difficulty={quizSet.difficulty} />
+              {isWrongOnlyMode && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  Chế độ: Ôn câu làm sai
+                </span>
+              )}
               <span className="text-xs text-slate-400">Nguồn: {quizSet.sourceDocumentName}</span>
             </div>
             <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 leading-snug">
@@ -182,7 +225,7 @@ export const QuizPlayerPage = () => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             {/* Timer */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold">
               <Clock className="w-4 h-4 text-slate-500" />
@@ -191,19 +234,31 @@ export const QuizPlayerPage = () => {
 
             {!isSubmitted ? (
               <button
+                type="button"
                 onClick={() => setIsConfirmModalOpen(true)}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
               >
                 Nộp bài ({answeredCount}/{totalQuestions})
               </button>
             ) : (
-              <button
-                onClick={handleRestart}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Làm lại</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                  title="In kết quả bài làm"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestartAll}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Làm lại</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -211,7 +266,7 @@ export const QuizPlayerPage = () => {
         {/* Progress Bar */}
         <div>
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5 font-medium">
-            <span>Tiến độ làm bài: {answeredCount}/{totalQuestions} câu</span>
+            <span>Tiến độ hoàn thành: {answeredCount}/{totalQuestions} câu</span>
             <span>{progressPercent}%</span>
           </div>
           <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -222,16 +277,20 @@ export const QuizPlayerPage = () => {
           </div>
         </div>
 
-        {/* Quick jump question numbers */}
-        <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
-          {quizSet.questions.map((_, idx) => {
+        {/* Question Numbers Quick Navigator */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+          <span className="text-xs font-medium text-slate-400 mr-1">Câu hỏi:</span>
+          {activeQuestions.map((_, idx) => {
             const isAnswered = selectedAnswers[idx] !== undefined;
             const isCurrent = currentIndex === idx;
+            const isFlagged = flaggedQuestions[idx];
+
             return (
               <button
                 key={idx}
+                type="button"
                 onClick={() => setCurrentIndex(idx)}
-                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                className={`relative w-8 h-8 rounded-lg text-xs font-bold transition-all ${
                   isCurrent
                     ? 'ring-2 ring-indigo-600 bg-indigo-600 text-white'
                     : isAnswered
@@ -239,22 +298,37 @@ export const QuizPlayerPage = () => {
                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                 }`}
               >
-                {idx + 1}
+                <span>{idx + 1}</span>
+                {isFlagged && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-1 ring-white" />
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Mode 1: During Quiz (Chưa nộp bài) */}
-      {!isSubmitted && (
+      {/* Mode 1: During Quiz (Đang làm bài) */}
+      {!isSubmitted && currentQuestion && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm space-y-6">
-          {/* Question Header */}
+          {/* Question Header & Bookmark button */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
               Câu hỏi {currentIndex + 1} trên {totalQuestions}
             </span>
-            <span className="text-xs text-slate-400">Chọn 1 đáp án chính xác nhất</span>
+
+            <button
+              type="button"
+              onClick={() => toggleFlagQuestion(currentIndex)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                flaggedQuestions[currentIndex]
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200 font-bold'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${flaggedQuestions[currentIndex] ? 'fill-current' : ''}`} />
+              <span>{flaggedQuestions[currentIndex] ? 'Đã đánh dấu xem lại' : 'Đánh dấu câu này'}</span>
+            </button>
           </div>
 
           {/* Question Text */}
@@ -266,7 +340,7 @@ export const QuizPlayerPage = () => {
           <div className="space-y-3 pt-2">
             {currentQuestion.options.map((opt, optIdx) => {
               const isSelected = selectedAnswers[currentIndex] === optIdx;
-              const optionLetter = String.fromCharCode(65 + optIdx); // A, B, C, D
+              const optionLetter = String.fromCharCode(65 + optIdx);
 
               return (
                 <button
@@ -297,6 +371,7 @@ export const QuizPlayerPage = () => {
           {/* Navigation Controls */}
           <div className="flex items-center justify-between pt-6 border-t border-slate-100">
             <button
+              type="button"
               onClick={handlePrev}
               disabled={currentIndex === 0}
               className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
@@ -312,6 +387,7 @@ export const QuizPlayerPage = () => {
             <div className="flex items-center gap-2">
               {currentIndex < totalQuestions - 1 ? (
                 <button
+                  type="button"
                   onClick={handleNext}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-sm"
                 >
@@ -320,6 +396,7 @@ export const QuizPlayerPage = () => {
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setIsConfirmModalOpen(true)}
                   className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-md"
                 >
@@ -335,7 +412,7 @@ export const QuizPlayerPage = () => {
       {/* Mode 2: Results & Explanations (Sau khi nộp bài) */}
       {isSubmitted && (
         <div className="space-y-6">
-          {/* Summary Score Banner */}
+          {/* Summary Score Card */}
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-5">
@@ -359,10 +436,10 @@ export const QuizPlayerPage = () => {
                     <Award className="w-4 h-4" />
                     <span>
                       {scorePercent >= 80
-                        ? 'Tuyệt vời! Bạn nắm rất vững kiến thức'
+                        ? 'Xuất sắc! Bạn nắm bài rất vững'
                         : scorePercent >= 50
-                        ? 'Khá tốt! Hãy ôn kỹ các câu làm sai'
-                        : 'Cần ôn tập thêm tài liệu này'}
+                        ? 'Khá tốt! Hãy ôn lại các câu chưa đúng'
+                        : 'Cần ôn tập kỹ hơn tài liệu này'}
                     </span>
                   </div>
                   <h2 className="text-xl font-extrabold text-slate-900">
@@ -374,18 +451,29 @@ export const QuizPlayerPage = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0 justify-center sm:justify-end">
+                {incorrectCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRetakeWrongOnly}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm transition-all"
+                  >
+                    Luyện lại {incorrectCount} câu sai
+                  </button>
+                )}
                 <button
-                  onClick={handleRestart}
+                  type="button"
+                  onClick={handleRestartAll}
                   className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all"
                 >
-                  Làm lại bài này
+                  Làm lại toàn bộ
                 </button>
                 <Link
                   to="/app/quiz-sets"
                   className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
                 >
-                  Danh sách đề thi
+                  Kho đề thi
                 </Link>
               </div>
             </div>
@@ -394,9 +482,10 @@ export const QuizPlayerPage = () => {
             <div className="flex items-center gap-2 pt-6 mt-6 border-t border-slate-100">
               <span className="text-xs font-bold text-slate-500 mr-2 flex items-center gap-1">
                 <ListFilter className="w-3.5 h-3.5" />
-                <span>Bộ lọc xem:</span>
+                <span>Xem chi tiết:</span>
               </span>
               <button
+                type="button"
                 onClick={() => setReviewFilter('all')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   reviewFilter === 'all'
@@ -407,6 +496,7 @@ export const QuizPlayerPage = () => {
                 Tất cả ({totalQuestions})
               </button>
               <button
+                type="button"
                 onClick={() => setReviewFilter('incorrect')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   reviewFilter === 'incorrect'
@@ -414,9 +504,10 @@ export const QuizPlayerPage = () => {
                     : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
                 }`}
               >
-                Chỉ câu sai ({totalQuestions - correctCount})
+                Chỉ câu sai ({incorrectCount})
               </button>
               <button
+                type="button"
                 onClick={() => setReviewFilter('correct')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   reviewFilter === 'correct'
@@ -528,7 +619,7 @@ export const QuizPlayerPage = () => {
       <Modal
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
-        title="Xác nhận nộp bài"
+        title="Xác nhận nộp bài thi"
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3">
@@ -549,12 +640,14 @@ export const QuizPlayerPage = () => {
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <button
+              type="button"
               onClick={() => setIsConfirmModalOpen(false)}
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
             >
               Tiếp tục làm
             </button>
             <button
+              type="button"
               onClick={handleConfirmSubmit}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
             >
@@ -566,4 +659,3 @@ export const QuizPlayerPage = () => {
     </div>
   );
 };
-

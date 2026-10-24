@@ -22,19 +22,28 @@ import {
   CartesianGrid
 } from 'recharts';
 import { getDocuments, getQuizSets, getStats } from '../services/storage';
+import { getCurrentUser, type UserProfile } from '../services/auth';
 import type { DocumentItem, QuizSet, UserStats } from '../types';
 import { DifficultyBadge } from '../components/common/Badge';
 import { weeklyActivityData } from '../data/mockData';
 
 export const DashboardPage = () => {
+  const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const [stats, setStats] = useState<UserStats>(getStats());
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [quizSets, setQuizSets] = useState<QuizSet[]>([]);
 
   useEffect(() => {
     setStats(getStats());
-    setDocuments(getDocuments().slice(0, 3)); // 3 tài liệu gần nhất
-    setQuizSets(getQuizSets().slice(0, 3)); // 3 bộ câu hỏi gần nhất
+    setDocuments(getDocuments().slice(0, 3));
+    setQuizSets(getQuizSets().slice(0, 3));
+    setCurrentUser(getCurrentUser());
+
+    const handleAuthChange = () => {
+      setCurrentUser(getCurrentUser());
+    };
+    window.addEventListener('auth_state_changed', handleAuthChange);
+    return () => window.removeEventListener('auth_state_changed', handleAuthChange);
   }, []);
 
   return (
@@ -48,10 +57,10 @@ export const DashboardPage = () => {
               <span>Chuỗi học tập: {stats.studyStreakDays} ngày liên tiếp 🔥</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Chào mừng bạn trở lại, Văn Học!
+              Chào mừng bạn trở lại, {currentUser.fullName}!
             </h1>
             <p className="text-indigo-100 text-sm leading-relaxed">
-              Hôm nay bạn muốn biến tài liệu nào thành bài luyện tập? Tải lên PDF để kiểm tra ngay mức độ hiểu bài.
+              Hôm nay bạn muốn biến tài liệu nào thành bài luyện tập? Tải lên PDF, Word, PowerPoint hoặc dán ghi chú để kiểm tra ngay mức độ hiểu bài.
             </p>
           </div>
 

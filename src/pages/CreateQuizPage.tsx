@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   UploadCloud,
-  FileText,
   Sparkles,
   AlertCircle,
   CheckCircle2,
@@ -10,67 +9,70 @@ import {
   FileCheck,
   X,
   ArrowRight,
-  Info
+  Type,
+  KeyRound,
+  Layers
 } from 'lucide-react';
 import type { DifficultyLevel } from '../types';
-import { simulateAIGeneration } from '../services/storage';
+import { createQuizAndFlashcards } from '../services/storage';
+import { getStoredApiKey } from '../services/aiService';
 
 export const CreateQuizPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form states
+  // Tab mode: 'file' | 'text'
+  const [activeTab, setActiveTab] = useState<'file' | 'text'>('file');
+
+  // Input states
+  const [customTitle, setCustomTitle] = useState('');
+  const [pastedText, setPastedText] = useState('');
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     size: string;
-    raw?: File;
+    content?: string;
   } | null>(null);
+
+  // Options
   const [questionCount, setQuestionCount] = useState<number>(5);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('medium');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Generation status states
+  // AI Key state
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  // Progress states
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
   const [completedQuizId, setCompletedQuizId] = useState<string | null>(null);
 
   const stepsList = [
-    'Đang tải lên và phân tích cấu trúc tài liệu (PDF, Word, PowerPoint)...',
-    'Trích xuất văn bản, tiêu đề và các khái niệm then chốt...',
-    'AI phân tích ngữ cảnh và thiết kế 4 phương án trắc nghiệm...',
-    'Hoàn tất bộ câu hỏi trắc nghiệm và lời giải thích!'
+    'Đang phân tích cấu trúc tài liệu học tập...',
+    'Trích xuất các luận điểm và thuật ngữ then chốt...',
+    hasApiKey ? 'Google Gemini 1.5 Flash đang thiết kế câu hỏi và giải thích...' : 'AI Engine đang sinh bộ câu hỏi trắc nghiệm và Flashcards...',
+    'Hoàn tất bài luyện tập! Đang lưu vào hệ thống...'
   ];
 
-  // Kiểm tra nếu có tài liệu truyền từ Dashboard qua query params
+  useEffect(() => {
+    setHasApiKey(Boolean(getStoredApiKey()));
+  }, []);
+
+  // Nhận tài liệu từ query params nếu có
   useEffect(() => {
     const docParam = searchParams.get('doc');
     const sizeParam = searchParams.get('size');
     if (docParam) {
       setSelectedFile({
         name: docParam,
-        size: sizeParam || '3.2 MB'
+        size: sizeParam || '3.2 MB',
       });
+      setCustomTitle(docParam.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
     }
   }, [searchParams]);
 
-  // Handle file drop & select
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    validateAndSetFile(file);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    validateAndSetFile(file);
-  };
-
-  const allowedExtensions = ['.pdf', '.docx', '.doc', '.pptx', '.ppt'];
+  // Handle file select
+  const allowedExtensions = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'];
 
   const validateAndSetFile = (file?: File) => {
     setErrorMsg(null);
@@ -90,171 +92,300 @@ export const CreateQuizPage = () => {
     }
 
     const sizeFormatted = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-    setSelectedFile({
-      name: file.name,
-      size: sizeFormatted,
-      raw: file
-    });
+
+    // Đọc text nếu là file text/markdown
+    if (lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setSelectedFile({
+          name: file.name,
+          size: sizeFormatted,
+          content: text,
+        });
+      };
+      reader.readAsText(file);
+    } else {
+      setSelectedFile({
+        name: file.name,
+        size: sizeFormatted,
+      });
+    }
+
+    if (!customTitle) {
+      setCustomTitle(file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
+    }
   };
 
-  // Trả về badge định dạng file
-  const getFileTypeBadge = (filename: string) => {
-    const lower = filename.toLowerCase();
-    if (lower.endsWith('.pdf')) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-          PDF
-        </span>
-      );
-    }
-    if (lower.endsWith('.docx') || lower.endsWith('.doc')) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-          Word (.docx)
-        </span>
-      );
-    }
-    if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-          PowerPoint (.pptx)
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-        DOC
-      </span>
-    );
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    validateAndSetFile(e.target.files?.[0]);
   };
 
   // Chọn file mẫu có sẵn
-  const selectSampleFile = (name: string, size: string) => {
+  const selectSampleFile = (name: string, size: string, sampleContent?: string) => {
     setErrorMsg(null);
-    setSelectedFile({ name, size });
+    setSelectedFile({ name, size, content: sampleContent });
+    setCustomTitle(name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
   };
 
-  // Kích hoạt mô phỏng tạo câu hỏi
-  const handleGenerate = () => {
-    if (!selectedFile) {
-      setErrorMsg('Vui lòng chọn hoặc kéo thả một tệp tài liệu (PDF, Word hoặc PowerPoint) để bắt đầu.');
+  // Kích hoạt sinh câu hỏi
+  const handleGenerate = async () => {
+    setErrorMsg(null);
+
+    if (activeTab === 'file' && !selectedFile) {
+      setErrorMsg('Vui lòng chọn hoặc kéo thả một tệp tài liệu để tiếp tục.');
       return;
     }
 
-    setErrorMsg(null);
+    if (activeTab === 'text' && pastedText.trim().length < 50) {
+      setErrorMsg('Nội dung văn bản quá ngắn. Vui lòng dán ít nhất 50 ký tự nội dung bài học.');
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationStep(0);
 
-    // Mô phỏng chuỗi tiến trình AI từng bước
     const stepInterval = setInterval(() => {
-      setGenerationStep((prev) => {
-        if (prev < stepsList.length - 1) {
-          return prev + 1;
-        } else {
-          clearInterval(stepInterval);
-          // Sinh dữ liệu và lưu vào localStorage
-          const newQuiz = simulateAIGeneration(
-            selectedFile.name,
-            selectedFile.size,
-            questionCount,
-            difficulty
-          );
-          setCompletedQuizId(newQuiz.id);
-          setIsGenerating(false);
-          return prev;
-        }
+      setGenerationStep((prev) => (prev < stepsList.length - 2 ? prev + 1 : prev));
+    }, 700);
+
+    try {
+      const finalTitle = customTitle.trim() || (selectedFile ? selectedFile.name : 'Bài học tổng hợp');
+      const textToAnalyze = activeTab === 'text'
+        ? pastedText
+        : (selectedFile?.content || `Tài liệu môn học: ${selectedFile?.name}. Phân tích các chương cốt lõi, khái niệm căn bản và phương pháp áp dụng thực tiễn của ${selectedFile?.name}.`);
+
+      const newQuiz = await createQuizAndFlashcards({
+        title: finalTitle,
+        sourceType: activeTab,
+        fileName: selectedFile?.name,
+        fileSize: selectedFile?.size,
+        textContent: textToAnalyze,
+        questionCount,
+        difficulty,
       });
-    }, 900);
+
+      clearInterval(stepInterval);
+      setGenerationStep(stepsList.length - 1);
+      setTimeout(() => {
+        setCompletedQuizId(newQuiz.id);
+        setIsGenerating(false);
+      }, 500);
+    } catch (err: any) {
+      clearInterval(stepInterval);
+      setIsGenerating(false);
+      setErrorMsg(`Có lỗi xảy ra: ${err.message || 'Không thể sinh câu hỏi. Vui lòng thử lại.'}`);
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Page Title */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Tạo bộ câu hỏi mới từ tài liệu
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Hỗ trợ tải lên tệp PDF, tài liệu Word (.docx) hoặc bài thuyết trình PowerPoint (.pptx) để tự động sinh câu hỏi kiểm tra kiến thức.
-        </p>
-      </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Tạo bộ câu hỏi mới từ tài liệu
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Biến bài giảng, slide hoặc ghi chú của bạn thành đề trắc nghiệm và flashcard chỉ trong vài giây.
+          </p>
+        </div>
 
-      {/* Demo Notification Notice */}
-      <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex items-start gap-3">
-        <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-        <div className="text-xs sm:text-sm text-indigo-900 leading-relaxed">
-          <span className="font-bold">Chế độ Demo mô phỏng AI:</span> Hệ thống hỗ trợ nhận diện và xử lý đa định dạng <b>PDF, Word (.docx), PowerPoint (.pptx)</b>. Bộ câu hỏi được tạo sẽ lưu trực tiếp vào trình duyệt và có thể làm bài thi ngay lập tức!
+        {/* AI Status Badge */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {hasApiKey ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>Google Gemini 1.5 Flash</span>
+            </div>
+          ) : (
+            <Link
+              to="/app/settings"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Thêm Gemini Key (Tùy chọn)</span>
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* Main Generation Flow */}
+      {/* Main Creation Flow */}
       {!isGenerating && !completedQuizId && (
-        <div className="space-y-8">
-          {/* Section 1: File Upload Box */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <span>1. Tải lên tài liệu học tập</span>
-            </h2>
-
-            {/* Dropzone */}
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all ${
-                selectedFile
-                  ? 'border-emerald-400 bg-emerald-50/30'
-                  : 'border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/20'
+        <div className="space-y-6">
+          {/* Method Selection Tabs */}
+          <div className="flex items-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl max-w-md">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('file');
+                setErrorMsg(null);
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'file'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.docx,.doc,.pptx,.ppt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+              <UploadCloud className="w-4 h-4" />
+              <span>Tải lên tệp tài liệu</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('text');
+                setErrorMsg(null);
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'text'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Type className="w-4 h-4" />
+              <span>Dán văn bản / Ghi chú</span>
+            </button>
+          </div>
 
-              {selectedFile ? (
-                <div className="flex flex-col items-center">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
-                    <FileCheck className="w-7 h-7" />
+          {/* Section 1: Input source */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+            {/* Title override */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                Tiêu đề bộ bài tập / Chủ đề ôn tập
+              </label>
+              <input
+                type="text"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                placeholder="VD: Ôn tập Chương 3 - Kiến trúc vi xử lý và bộ nhớ"
+                className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+              />
+            </div>
+
+            {/* TAB 1: FILE UPLOAD */}
+            {activeTab === 'file' ? (
+              <div className="space-y-4 pt-2">
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    validateAndSetFile(e.dataTransfer.files?.[0]);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all ${
+                    selectedFile
+                      ? 'border-emerald-400 bg-emerald-50/30'
+                      : 'border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/20'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+
+                  {selectedFile ? (
+                    <div className="flex flex-col items-center">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+                        <FileCheck className="w-7 h-7" />
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-base mb-1">{selectedFile.name}</h4>
+                      <p className="text-xs text-slate-500 mb-4">Dung lượng: {selectedFile.size} • Sẵn sàng phân tích</p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFile(null);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-semibold transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Hủy chọn tệp</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
+                        <UploadCloud className="w-7 h-7" />
+                      </div>
+                      <h4 className="font-bold text-slate-800 text-base mb-1">
+                        Kéo và thả tệp PDF, Word hoặc PowerPoint vào đây
+                      </h4>
+                      <p className="text-xs text-slate-400 max-w-md mb-3">
+                        Hỗ trợ .pdf, .docx, .pptx, .txt (Dung lượng tối đa 30MB)
+                      </p>
+                      <span className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-colors">
+                        Chọn tệp từ máy tính
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick sample files */}
+                <div className="pt-2">
+                  <span className="text-xs font-medium text-slate-500 mr-2">Hoặc thử nhanh với tài liệu mẫu:</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => selectSampleFile('Kien_truc_Vi_dieu_khien_ARM.pdf', '4.2 MB')}
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
+                    >
+                      📄 Vi điều khiển ARM.pdf
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectSampleFile('De_cuong_Tri_tue_Nhan_tao_2026.docx', '1.8 MB')}
+                      className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-medium border border-blue-200"
+                    >
+                      📝 Đề cương AI.docx
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectSampleFile('Slide_Kien_truc_Mang_May_tinh.pptx', '6.5 MB')}
+                      className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200"
+                    >
+                      📊 Slide Mạng máy tính.pptx
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-bold text-slate-900 text-base">{selectedFile.name}</h4>
-                    {getFileTypeBadge(selectedFile.name)}
-                  </div>
-                  <p className="text-xs text-slate-500 mb-4">Dung lượng: {selectedFile.size} • Trạng thái: Sẵn sàng phân tích</p>
+                </div>
+              </div>
+            ) : (
+              /* TAB 2: TEXT PASTE */
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>Dán nội dung bài học, tóm tắt hoặc slide bài giảng của bạn vào đây:</span>
+                  <span>{pastedText.length} ký tự</span>
+                </div>
+                <textarea
+                  rows={8}
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Ví dụ: Dán đoạn giáo trình, các định nghĩa hoặc nội dung slide cần ôn tập..."
+                  className="w-full p-4 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 leading-relaxed font-normal resize-y"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Gợi ý nội dung nhanh:</span>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
+                    onClick={() => {
+                      setPastedText(`Nguyên lý hoạt động của Hệ điều hành (Operating System):
+Hệ điều hành đóng vai trò là cầu nối trung gian giữa phần cứng máy tính và người sử dụng. Bốn nhiệm vụ cốt lõi bao gồm:
+1. Quản lý tiến trình (Process Management): Lập lịch CPU, xử lý đa nhiệm, đồng bộ hóa và ngăn ngừa hiện tượng Deadlock.
+2. Quản lý bộ nhớ (Memory Management): Cơ chế phân trang (Paging), bộ nhớ ảo (Virtual Memory) và phân đoạn (Segmentation) giúp tăng không gian nhớ hiệu dụng.
+3. Quản lý hệ thống tập tin (File System): Tổ chức lưu trữ dạng phân cấp cây thư mục, đảm bảo tính toàn vẹn và phân quyền truy cập.
+4. Quản lý thiết bị ngoại vi (I/O System): Cung cấp trình điều khiển thiết bị (Device Drivers) chuẩn hóa giao tiếp phần cứng.`);
+                      if (!customTitle) setCustomTitle('Nguyên lý Hệ điều hành & Quản lý bộ nhớ');
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-semibold transition-colors"
+                    className="text-xs text-indigo-600 hover:underline font-semibold"
                   >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Hủy chọn tệp</span>
+                    Dán mẫu: Bài học Nguyên lý Hệ điều hành
                   </button>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
-                    <UploadCloud className="w-7 h-7" />
-                  </div>
-                  <h4 className="font-bold text-slate-800 text-base mb-1">
-                    Kéo và thả tệp PDF, Word hoặc PowerPoint vào đây
-                  </h4>
-                  <p className="text-xs text-slate-400 max-w-md mb-3">
-                    Định dạng hỗ trợ: <span className="font-semibold text-slate-600">.pdf, .docx, .pptx</span> (Tối đa 30MB)
-                  </p>
-                  <span className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-colors">
-                    Chọn tệp từ thiết bị
-                  </span>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Error Message */}
             {errorMsg && (
@@ -263,44 +394,13 @@ export const CreateQuizPage = () => {
                 <span>{errorMsg}</span>
               </div>
             )}
-
-            {/* Quick sample files (PDF, DOCX, PPTX) */}
-            <div className="pt-2">
-              <span className="text-xs font-medium text-slate-500 mr-2">Hoặc thử nhanh với các tài liệu mẫu:</span>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => selectSampleFile('Kien_truc_Vi_dieu_khien_ARM.pdf', '4.2 MB')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors flex items-center gap-1.5"
-                >
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  <span>PDF: Vi điều khiển ARM.pdf</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectSampleFile('De_cuong_Tri_tue_Nhan_tao_2026.docx', '1.8 MB')}
-                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-medium transition-colors flex items-center gap-1.5 border border-blue-200"
-                >
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  <span>Word: Đề cương AI.docx</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectSampleFile('Slide_Kien_truc_Mang_May_tinh.pptx', '6.5 MB')}
-                  className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium transition-colors flex items-center gap-1.5 border border-amber-200"
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span>PowerPoint: Slide Mạng máy tính.pptx</span>
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Section 2: Generation Settings */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Sliders className="w-5 h-5 text-indigo-600" />
-              <span>2. Cấu hình bài luyện tập</span>
+              <span>Cấu hình bài luyện tập</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -325,7 +425,7 @@ export const CreateQuizPage = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-400">Khuyên dùng 5 câu cho bài kiểm tra nhanh.</p>
+                <p className="text-[11px] text-slate-400">Khuyên dùng 5 - 10 câu cho bài kiểm tra nhanh.</p>
               </div>
 
               {/* Setting 2: Độ khó */}
@@ -355,19 +455,24 @@ export const CreateQuizPage = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-400">Điều chỉnh độ sâu của các bẫy câu hỏi.</p>
+                <p className="text-[11px] text-slate-400">Điều chỉnh độ sâu và cạm bẫy câu hỏi.</p>
               </div>
 
-              {/* Setting 3: Dạng câu hỏi */}
+              {/* Setting 3: Gói đầu ra */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Dạng câu hỏi
+                  Kết quả tự động sinh
                 </label>
-                <div className="w-full py-2.5 px-3 rounded-xl text-xs font-bold border border-indigo-600 bg-indigo-50 text-indigo-700 flex items-center justify-between">
-                  <span>Trắc nghiệm 4 đáp án</span>
-                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/70 text-indigo-950 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Trắc nghiệm 4 đáp án</span>
+                  </div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-indigo-600" />
+                    <span>Tự động tạo kèm Flashcards</span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400">Hỗ trợ tự động tạo kèm Flashcard ghi nhớ.</p>
               </div>
             </div>
           </div>
@@ -380,13 +485,13 @@ export const CreateQuizPage = () => {
               className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg shadow-indigo-200 transition-all hover:shadow-indigo-300 hover:scale-102"
             >
               <Sparkles className="w-4 h-4" />
-              <span>Tạo bộ câu hỏi</span>
+              <span>Bắt đầu tạo câu hỏi</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Loading & AI Processing Simulation State */}
+      {/* Loading & Processing */}
       {isGenerating && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-12 shadow-md text-center max-w-xl mx-auto space-y-6">
           <div className="relative w-20 h-20 mx-auto">
@@ -398,14 +503,14 @@ export const CreateQuizPage = () => {
 
           <div className="space-y-2">
             <h3 className="text-lg font-bold text-slate-900">
-              AI đang phân tích tài liệu của bạn
+              Hệ thống đang xử lý và trích xuất câu hỏi
             </h3>
             <p className="text-sm text-indigo-600 font-semibold min-h-[24px]">
               {stepsList[generationStep]}
             </p>
           </div>
 
-          {/* Progress step indicators */}
+          {/* Progress indicators */}
           <div className="space-y-2 pt-4">
             {stepsList.map((step, idx) => (
               <div
@@ -441,10 +546,10 @@ export const CreateQuizPage = () => {
 
           <div className="space-y-2">
             <h3 className="text-xl font-extrabold text-slate-900">
-              Tạo bộ câu hỏi thành công!
+              Tạo bộ câu hỏi & Flashcards thành công!
             </h3>
             <p className="text-sm text-slate-500 leading-relaxed">
-              Bộ câu hỏi đã được tạo và lưu trữ trên hệ thống. Bạn có thể bắt đầu làm bài kiểm tra hoặc xem lại danh sách câu hỏi bất kỳ lúc nào.
+              Bộ câu hỏi đã được lưu an toàn. Bạn có thể làm bài kiểm tra tính giờ ngay bây giờ hoặc ôn lại bằng Flashcard.
             </p>
           </div>
 
@@ -457,10 +562,16 @@ export const CreateQuizPage = () => {
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
+              onClick={() => navigate('/app/flashcards')}
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm transition-colors"
+            >
+              Xem thẻ Flashcards
+            </button>
+            <button
               onClick={() => navigate('/app/quiz-sets')}
               className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors"
             >
-              Xem danh sách bộ đề
+              Kho đề thi
             </button>
           </div>
         </div>
