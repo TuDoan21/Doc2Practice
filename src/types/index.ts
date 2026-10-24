@@ -121,7 +121,8 @@ export interface StudentSubmission {
   submittedAt: string;
   durationSeconds: number;
   tabSwitchCount: number; // Số lần vi phạm chuyển tab
-  status: 'submitted' | 'violation_auto_submitted';
+  status: 'taking' | 'submitted' | 'violation_auto_submitted';
+  lastViolationTime?: string;
 }
 
 export interface AppNotification {

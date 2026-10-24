@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Users,
   GraduationCap,
@@ -14,31 +14,55 @@ import {
   Eye,
   Award,
   Play,
-  Sparkles
+  Sparkles,
+  Radio,
+  AlertTriangle,
+  ArrowLeft,
+  RefreshCw,
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
-import { getCurrentUser, switchUserRole, type UserProfile } from '../services/auth';
+import { getCurrentUser, type UserProfile } from '../services/auth';
 import {
   getClassrooms,
   createClassroom,
   joinClassroomByCode,
   getAssignmentsByClass,
+  getAssignmentById,
   createAssignment,
   getSubmissionsByClass,
-  getSubmissionsByAssignment
+  getSubmissionsByAssignment,
+  simulateStudentTabViolation
 } from '../services/classService';
 import { getQuizSets } from '../services/storage';
-import type { Classroom, ClassAssignment, QuizSet, AssignmentType } from '../types';
+import type { Classroom, ClassAssignment, QuizSet, AssignmentType, StudentSubmission } from '../types';
 import { Modal } from '../components/common/Modal';
 
 export const ClassroomsPage = () => {
   const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const isTeacher = currentUser.role === 'teacher';
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const monitorParam = searchParams.get('monitor');
+  const assignQuizParam = searchParams.get('assignQuiz');
+
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [allQuizSets, setAllQuizSets] = useState<QuizSet[]>([]);
 
   // Selected Classroom for detail/assignments view
   const [selectedClassId, setSelectedClassId] = useState<string>('');
+
+  // Live Exam Proctoring Mode for Teachers
+  const [monitoringAssignmentId, setMonitoringAssignmentId] = useState<string | null>(monitorParam);
+  const [liveViolationAlert, setLiveViolationAlert] = useState<{
+    studentName: string;
+    studentEmail: string;
+    violationCount: number;
+    timestamp: string;
+    autoSubmitted?: boolean;
+  } | null>(null);
+  const [proctorFilter, setProctorFilter] = useState<'all' | 'taking' | 'submitted' | 'violation'>('all');
+  const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentSubmission | null>(null);
 
   // Modals
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
@@ -51,9 +75,9 @@ export const ClassroomsPage = () => {
   const [joinMessage, setJoinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Modal Giao bài tập cho giáo viên
-  const [isCreateAssignmentOpen, setIsCreateAssignmentOpen] = useState(false);
+  const [isCreateAssignmentOpen, setIsCreateAssignmentOpen] = useState(Boolean(assignQuizParam));
   const [asgTitle, setAsgTitle] = useState('');
-  const [asgQuizSetId, setAsgQuizSetId] = useState('');
+  const [asgQuizSetId, setAsgQuizSetId] = useState(assignQuizParam || '');
   const [asgType, setAsgType] = useState<AssignmentType>('exam');
   const [asgDuration, setAsgDuration] = useState(30);
   const [asgDueDate, setAsgDueDate] = useState('2026-11-15');
@@ -64,12 +88,42 @@ export const ClassroomsPage = () => {
   // Copy code feedback
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Âm thanh cảnh báo gian lận nhẹ nhàng
+  const playAlertSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {
+      // ignore
+    }
+  };
+
   const refreshData = () => {
     const user = getCurrentUser();
     setCurrentUser(user);
     const loadedClasses = getClassrooms();
     setClassrooms(loadedClasses);
-    setAllQuizSets(getQuizSets());
+    const loadedQuiz = getQuizSets();
+    setAllQuizSets(loadedQuiz);
+
+    if (assignQuizParam && !asgQuizSetId) {
+      setAsgQuizSetId(assignQuizParam);
+      const foundQ = loadedQuiz.find((q) => q.id === assignQuizParam);
+      if (foundQ) setAsgTitle(`Kiểm tra: ${foundQ.title}`);
+      setIsCreateAssignmentOpen(true);
+    }
 
     if (loadedClasses.length > 0 && !selectedClassId) {
       setSelectedClassId(loadedClasses[0].id);
@@ -77,26 +131,37 @@ export const ClassroomsPage = () => {
   };
 
   useEffect(() => {
+    if (monitorParam) {
+      setMonitoringAssignmentId(monitorParam);
+    }
+  }, [monitorParam]);
+
+  useEffect(() => {
     refreshData();
 
     const handleUpdates = () => refreshData();
+    const handleViolationDetected = (e: any) => {
+      if (e.detail) {
+        setLiveViolationAlert(e.detail);
+        playAlertSound();
+      }
+      refreshData();
+    };
+
     window.addEventListener('auth_state_changed', handleUpdates);
     window.addEventListener('classes_updated', handleUpdates);
     window.addEventListener('assignments_updated', handleUpdates);
     window.addEventListener('submissions_updated', handleUpdates);
+    window.addEventListener('exam_tab_violation_detected', handleViolationDetected);
 
     return () => {
       window.removeEventListener('auth_state_changed', handleUpdates);
       window.removeEventListener('classes_updated', handleUpdates);
       window.removeEventListener('assignments_updated', handleUpdates);
       window.removeEventListener('submissions_updated', handleUpdates);
+      window.removeEventListener('exam_tab_violation_detected', handleViolationDetected);
     };
-  }, [selectedClassId]);
-
-  const handleRoleToggle = (newRole: 'student' | 'teacher') => {
-    switchUserRole(newRole);
-    refreshData();
-  };
+  }, [selectedClassId, monitorParam, assignQuizParam]);
 
   // Copy mã lớp
   const handleCopyCode = (code: string) => {
@@ -175,59 +240,344 @@ export const ClassroomsPage = () => {
   const assignments = selectedClass ? getAssignmentsByClass(selectedClass.id) : [];
   const submissions = selectedClass ? getSubmissionsByClass(selectedClass.id) : [];
 
+  const monitoringAssignment = monitoringAssignmentId ? getAssignmentById(monitoringAssignmentId) : null;
+  const monitoringSubmissions = monitoringAssignmentId ? getSubmissionsByAssignment(monitoringAssignmentId) : [];
+
   return (
     <div className="space-y-6 pb-16">
-      {/* Top Header & Role Switcher Banner */}
+      {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
               isTeacher
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
             }`}>
-              {isTeacher ? '👨‍🏫 Chế độ Giáo viên' : '🎓 Chế độ Học sinh / Sinh viên'}
+              {isTeacher ? '👨‍🏫 Quyền hạn: Giáo viên / Giảng viên' : '🎓 Quyền hạn: Học sinh / Sinh viên'}
             </span>
             <span className="text-xs text-slate-400">• Doc2Practice Classroom</span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            {isTeacher ? 'Quản lý Lớp học & Đề thi' : 'Lớp học của tôi'}
+            {isTeacher ? 'Quản lý Lớp học & Phòng Giám Sát Đề Thi' : 'Lớp học & Bài tập của tôi'}
           </h1>
           <p className="text-xs text-slate-500">
             {isTeacher
-              ? 'Tạo lớp học, gửi mã PIN cho học sinh, giao bài kiểm tra chống chuyển tab và theo dõi điểm số thời gian thực.'
-              : 'Tham gia lớp của giáo viên, làm bài kiểm tra chính thức và tự ôn tập bằng tài liệu cá nhân.'}
+              ? 'Tạo lớp học, gửi mã PIN, giao đề thi chống chuyển tab và giám sát trực tiếp sinh viên làm bài với cảnh báo gian lận.'
+              : 'Tham gia lớp của giáo viên bằng mã PIN để làm bài tập, bài thi hoặc tự do tải tài liệu cá nhân để ôn luyện riêng.'}
           </p>
         </div>
 
-        {/* Quick Role Toggle for Demo / Testing */}
-        <div className="flex items-center gap-2 self-start md:self-auto bg-slate-100 p-1.5 rounded-xl text-xs font-bold shrink-0">
-          <span className="text-slate-400 px-2 font-medium">Chuyển vai trò:</span>
-          <button
-            type="button"
-            onClick={() => handleRoleToggle('teacher')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-              isTeacher ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <GraduationCap className="w-3.5 h-3.5" />
-            <span>Giáo viên</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleRoleToggle('student')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-              !isTeacher ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Học sinh</span>
-          </button>
+        {/* User Identity Info */}
+        <div className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 self-start md:self-auto flex items-center gap-2.5">
+          {isTeacher ? (
+            <GraduationCap className="w-4 h-4 text-amber-600" />
+          ) : (
+            <Users className="w-4 h-4 text-emerald-600" />
+          )}
+          <span>{currentUser.fullName} ({currentUser.email})</span>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ================= LIVE PROCTORING VIEW FOR TEACHERS ================= */}
+      {isTeacher && monitoringAssignment ? (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Back button and title */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonitoringAssignmentId(null);
+                  setSearchParams({});
+                }}
+                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 text-xs font-bold"
+                title="Quay lại danh sách lớp"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Quay lại lớp học</span>
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white animate-pulse">
+                    <Radio className="w-3 h-3" />
+                    <span>PHÒNG GIÁM SÁT TRỰC TIẾP (LIVE)</span>
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">• Mã phòng thi: {selectedClass?.code || 'WEB-8821'}</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900 mt-1">
+                  {monitoringAssignment.title}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Lớp: <strong>{monitoringAssignment.className}</strong> • Thời lượng: <strong>{monitoringAssignment.durationMinutes} phút</strong> • Hạn nộp: <strong>{monitoringAssignment.dueDate}</strong> • Số câu: <strong>{monitoringAssignment.totalQuestions} câu</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  simulateStudentTabViolation(monitoringAssignment.id);
+                  refreshData();
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all hover:scale-102"
+                title="Bấm để thử nghiệm cơ chế phát hiện và cảnh báo thoát tab thời gian thực"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>⚡ Thử nghiệm cảnh báo thoát tab</span>
+              </button>
+              <button
+                type="button"
+                onClick={refreshData}
+                className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                title="Làm mới dữ liệu phòng thi"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Real-time Alert Banner if any student exits tab */}
+          {liveViolationAlert && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-red-800 text-white shadow-lg border border-rose-500 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-bounce-once">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black uppercase px-2 py-0.5 rounded bg-black/30 tracking-wider">
+                      CẢNH BÁO GIAN LẬN THỜI GIAN THỰC
+                    </span>
+                    <span className="text-[11px] text-rose-200">{liveViolationAlert.timestamp}</span>
+                  </div>
+                  <h4 className="font-extrabold text-sm sm:text-base mt-0.5">
+                    Học sinh {liveViolationAlert.studentName} ({liveViolationAlert.studentEmail}) vừa rời khỏi màn hình làm bài!
+                  </h4>
+                  <p className="text-xs text-rose-100">
+                    Số lần vi phạm: <strong>{liveViolationAlert.violationCount}/3 lần</strong>.{' '}
+                    {liveViolationAlert.autoSubmitted
+                      ? '🚨 ĐÃ VƯỢT QUÁ 3 LẦN: HỆ THỐNG ĐÃ TỰ ĐỘNG KHÓA VÀ THU BÀI.'
+                      : 'Hệ thống đã hiển thị cảnh báo đỏ trên màn hình của học sinh.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLiveViolationAlert(null)}
+                className="px-4 py-2 rounded-xl bg-white text-rose-800 font-bold text-xs shadow-xs hover:bg-rose-50 transition-colors shrink-0 self-start sm:self-auto"
+              >
+                Xác nhận đã xử lý
+              </button>
+            </div>
+          )}
+
+          {/* 4 Stat Metric Cards for Proctoring */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-medium">Sĩ số lớp</div>
+                <div className="text-lg font-black text-slate-900">{selectedClass?.studentCount || 32} học sinh</div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-medium">Đang làm bài</div>
+                <div className="text-lg font-black text-blue-600">
+                  {monitoringSubmissions.filter((s) => s.status === 'taking').length} thí sinh
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-medium">Đã hoàn thành</div>
+                <div className="text-lg font-black text-emerald-600">
+                  {monitoringSubmissions.filter((s) => s.status === 'submitted' || s.status === 'violation_auto_submitted').length} bài nộp
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-medium">Vi phạm thoát tab</div>
+                <div className="text-lg font-black text-rose-600">
+                  {monitoringSubmissions.filter((s) => s.tabSwitchCount > 0).length} học sinh
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Student Proctoring Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
+                  <span>Bảng theo dõi thí sinh theo thời gian thực</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cập nhật tức thì khi sinh viên làm bài, nộp bài hoặc bị phát hiện rời khỏi tab thi
+                </p>
+              </div>
+
+              {/* Filter tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setProctorFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    proctorFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Tất cả ({monitoringSubmissions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProctorFilter('taking')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    proctorFilter === 'taking' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Đang làm ({monitoringSubmissions.filter((s) => s.status === 'taking').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProctorFilter('violation')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    proctorFilter === 'violation' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  ⚠️ Có vi phạm ({monitoringSubmissions.filter((s) => s.tabSwitchCount > 0).length})
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-500 uppercase font-semibold border-y border-slate-100">
+                  <tr>
+                    <th className="py-2.5 px-3">Học sinh / Thí sinh</th>
+                    <th className="py-2.5 px-3">Trạng thái thi</th>
+                    <th className="py-2.5 px-3">Giám sát Thoát Tab (Anti-Cheat)</th>
+                    <th className="py-2.5 px-3">Điểm số</th>
+                    <th className="py-2.5 px-3">Thời gian nộp</th>
+                    <th className="py-2.5 px-3 text-right">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {monitoringSubmissions
+                    .filter((sub) => {
+                      if (proctorFilter === 'taking') return sub.status === 'taking';
+                      if (proctorFilter === 'submitted') return sub.status === 'submitted' || sub.status === 'violation_auto_submitted';
+                      if (proctorFilter === 'violation') return sub.tabSwitchCount > 0;
+                      return true;
+                    })
+                    .map((sub) => {
+                      return (
+                        <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-900">{sub.studentName}</div>
+                            <div className="text-[11px] text-slate-400">{sub.studentEmail}</div>
+                          </td>
+                          <td className="py-3 px-3">
+                            {sub.status === 'taking' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                                <span>Đang làm bài...</span>
+                              </span>
+                            ) : sub.status === 'violation_auto_submitted' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                <span>Bị khóa & Thu bài do gian lận</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Đã nộp bài</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3">
+                            {sub.tabSwitchCount === 0 ? (
+                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>0 lần (Tuân thủ tốt)</span>
+                              </span>
+                            ) : sub.tabSwitchCount >= 3 || sub.status === 'violation_auto_submitted' ? (
+                              <div className="inline-flex flex-col">
+                                <span className="inline-flex items-center gap-1 font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-300 animate-pulse">
+                                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>🚨 Thoát tab {sub.tabSwitchCount} lần (Khóa bài)</span>
+                                </span>
+                                {sub.lastViolationTime && (
+                                  <span className="text-[10px] text-slate-400 mt-0.5">Lần cuối: {sub.lastViolationTime}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="inline-flex flex-col">
+                                <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>⚠️ Thoát tab {sub.tabSwitchCount}/3 lần</span>
+                                </span>
+                                {sub.lastViolationTime && (
+                                  <span className="text-[10px] text-slate-400 mt-0.5">Lần cuối: {sub.lastViolationTime}</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-3">
+                            {sub.status === 'taking' ? (
+                              <span className="text-slate-400 italic">Chưa nộp bài</span>
+                            ) : (
+                              <div>
+                                <span className={`font-black text-sm px-2 py-0.5 rounded ${
+                                  sub.score >= 80 ? 'text-emerald-700 bg-emerald-50' : 'text-slate-800 bg-slate-100'
+                                }`}>
+                                  {sub.score}%
+                                </span>
+                                <span className="text-[10px] text-slate-400 ml-1">({sub.correctCount}/{sub.totalQuestions} câu)</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500">
+                            {sub.submittedAt}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudentDetail(sub)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors"
+                            >
+                              Xem nhật ký
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ================= STANDARD CLASSROOM LIST & ASSIGNMENTS VIEW ================= */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Classrooms List */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -439,14 +789,36 @@ export const ClassroomsPage = () => {
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 shrink-0">
                             {isTeacher ? (
-                              <button
-                                type="button"
-                                onClick={() => setViewingAssignment(asg)}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 shadow-xs transition-colors"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                                <span>Xem điểm & Vi phạm</span>
-                              </button>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {asg.type === 'exam' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMonitoringAssignmentId(asg.id)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-102"
+                                  >
+                                    <Radio className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                                    <span>Phòng Giám Sát Trực Tiếp</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMonitoringAssignmentId(asg.id)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                                    <span>Theo dõi tiến độ học sinh</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssignment(asg)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 shadow-xs transition-colors"
+                                  title="Xem bảng điểm bài nộp"
+                                >
+                                  <Award className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Bảng điểm</span>
+                                </button>
+                              </div>
                             ) : (
                               <Link
                                 to={`/app/quiz/${asg.quizSetId}?assignmentId=${asg.id}`}
@@ -567,6 +939,92 @@ export const ClassroomsPage = () => {
           )}
         </div>
       </div>
+      )}
+
+      {/* Modal: Chi tiết bài làm & Nhật ký giám sát học sinh */}
+      <Modal
+        isOpen={Boolean(selectedStudentDetail)}
+        onClose={() => setSelectedStudentDetail(null)}
+        title={selectedStudentDetail ? `Nhật Ký Thí Sinh: ${selectedStudentDetail.studentName}` : ''}
+        maxWidth="md"
+      >
+        {selectedStudentDetail && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Họ và tên:</span>
+                <span className="font-bold text-slate-900">{selectedStudentDetail.studentName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-medium text-slate-700">{selectedStudentDetail.studentEmail}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Trạng thái:</span>
+                <span className={`font-bold ${
+                  selectedStudentDetail.status === 'violation_auto_submitted'
+                    ? 'text-rose-600'
+                    : selectedStudentDetail.status === 'taking'
+                    ? 'text-blue-600'
+                    : 'text-emerald-600'
+                }`}>
+                  {selectedStudentDetail.status === 'violation_auto_submitted'
+                    ? 'Bị khóa bài do gian lận'
+                    : selectedStudentDetail.status === 'taking'
+                    ? 'Đang làm bài'
+                    : 'Đã hoàn thành'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Điểm số:</span>
+                <span className="font-black text-slate-900">
+                  {selectedStudentDetail.status === 'taking' ? 'Chưa nộp' : `${selectedStudentDetail.score}% (${selectedStudentDetail.correctCount}/${selectedStudentDetail.totalQuestions} câu)`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Thời gian làm bài:</span>
+                <span className="font-medium text-slate-700">{Math.round(selectedStudentDetail.durationSeconds / 60)} phút</span>
+              </div>
+            </div>
+
+            {/* Anti-Cheat Log details */}
+            <div className={`p-4 rounded-2xl border text-xs space-y-2 ${
+              selectedStudentDetail.tabSwitchCount > 0
+                ? 'bg-rose-50/60 border-rose-200'
+                : 'bg-emerald-50/60 border-emerald-200'
+            }`}>
+              <div className="font-bold flex items-center gap-1.5 text-slate-900">
+                <ShieldAlert className={`w-4 h-4 ${selectedStudentDetail.tabSwitchCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`} />
+                <span>Nhật ký giám sát Chống Chuyển Tab (Anti-Cheat)</span>
+              </div>
+              <p className="text-slate-600 leading-relaxed">
+                {selectedStudentDetail.tabSwitchCount === 0
+                  ? 'Thí sinh tuân thủ 100% quy chế thi, không ghi nhận bất kỳ lần rời màn hình thi nào.'
+                  : `Phát hiện ${selectedStudentDetail.tabSwitchCount} lần rời khỏi màn hình làm bài thi. ${
+                      selectedStudentDetail.status === 'violation_auto_submitted'
+                        ? 'Hệ thống đã tự động khóa và thu bài để đảm bảo tính công bằng.'
+                        : 'Hệ thống đã ghi nhận và cảnh báo học sinh.'
+                    }`}
+              </p>
+              {selectedStudentDetail.lastViolationTime && (
+                <div className="text-[11px] text-slate-500 font-mono">
+                  Thời điểm vi phạm gần nhất: {selectedStudentDetail.lastViolationTime}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedStudentDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal: Tạo lớp học mới (Giáo viên) */}
       <Modal isOpen={isCreateClassOpen} onClose={() => setIsCreateClassOpen(false)} title="Tạo Lớp Học Mới" maxWidth="md">

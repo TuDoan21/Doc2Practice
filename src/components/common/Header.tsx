@@ -10,14 +10,13 @@ import {
   ChevronDown,
   AlertTriangle,
   Timer,
-  GraduationCap,
   Users,
   ShieldAlert
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Modal } from './Modal';
 import { PomodoroModal } from './PomodoroModal';
-import { getCurrentUser, logoutUser, switchUserRole, type UserProfile } from '../../services/auth';
+import { getCurrentUser, logoutUser, type UserProfile } from '../../services/auth';
 import { getNotifications, markAllNotificationsAsRead } from '../../services/classService';
 import type { AppNotification } from '../../types';
 
@@ -265,26 +264,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
                   <span>{currentUser.role === 'teacher' ? 'Quản lý Lớp học' : 'Lớp học của tôi'}</span>
                 </Link>
 
-                {/* Quick Role Switcher Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextRole = currentUser.role === 'teacher' ? 'student' : 'teacher';
-                    switchUserRole(nextRole);
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
-                >
-                  <span className="flex items-center gap-2">
-                    {currentUser.role === 'teacher' ? (
-                      <Users className="w-4 h-4 text-indigo-600" />
-                    ) : (
-                      <GraduationCap className="w-4 h-4 text-emerald-600" />
-                    )}
-                    <span>Đổi sang {currentUser.role === 'teacher' ? 'Học sinh' : 'Giáo viên'}</span>
+                {/* Role indicator (Strict role enforcement) */}
+                <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Vai trò tài khoản:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                    currentUser.role === 'teacher'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {currentUser.role === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-200 rounded text-slate-700">Đổi</span>
-                </button>
+                </div>
 
                 <Link
                   to="/app/settings"

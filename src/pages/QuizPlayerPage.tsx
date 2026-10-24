@@ -16,10 +16,12 @@ import {
   Printer,
   Sparkles,
   BookOpen,
-  ShieldAlert
+  ShieldAlert,
+  Users,
+  Eye
 } from 'lucide-react';
 import { getQuizSetById, recordQuizAttempt } from '../services/storage';
-import { getAssignmentById, recordStudentSubmission } from '../services/classService';
+import { getAssignmentById, recordStudentSubmission, recordStudentTabViolation } from '../services/classService';
 import { getCurrentUser } from '../services/auth';
 import type { QuizSet, QuizAttempt, Question, ClassAssignment } from '../types';
 import { Modal } from '../components/common/Modal';
@@ -78,7 +80,21 @@ export const QuizPlayerPage = () => {
           const next = prev + 1;
           setShowTabWarning(true);
           const maxAllowed = assignment.maxTabSwitchViolations || 3;
-          if (next >= maxAllowed) {
+          const isAutoSubmit = next >= maxAllowed;
+
+          // CẢNH BÁO TỨC THÌ VỀ PHÍA GIÁO VIÊN
+          const user = getCurrentUser();
+          recordStudentTabViolation({
+            assignmentId: assignment.id,
+            classId: assignment.classId,
+            studentName: user.fullName,
+            studentEmail: user.email,
+            violationCount: next,
+            maxViolations: maxAllowed,
+            autoSubmitted: isAutoSubmit,
+          });
+
+          if (isAutoSubmit) {
             // Tự động thu bài khi vi phạm vượt ngưỡng
             setTimeout(() => {
               handleConfirmSubmit(true);
@@ -123,6 +139,45 @@ export const QuizPlayerPage = () => {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="w-8 h-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  const currentUser = getCurrentUser();
+
+  // RÀNG BUỘC: Giáo viên không làm bài kiểm tra được giao mà chuyển sang trang Giám Sát Phòng Thi
+  if (currentUser.role === 'teacher' && assignmentId) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 bg-white rounded-3xl border border-slate-200 shadow-sm text-center space-y-6">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+          <Users className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <span className="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-800 rounded-full border border-amber-200">
+            Quyền Hạn Giáo Viên / Giảng Viên
+          </span>
+          <h2 className="text-2xl font-black text-slate-900 pt-2">
+            Đây là bài thi do bạn phụ trách
+          </h2>
+          <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+            Giáo viên không trực tiếp làm bài thi này. Vui lòng chuyển sang <strong>Phòng Giám Sát Trực Tiếp</strong> để theo dõi tiến độ sinh viên, kiểm tra bảng điểm và nhận cảnh báo khi học sinh vi phạm chuyển tab.
+          </p>
+        </div>
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            to={`/app/classes?monitor=${assignmentId}`}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
+          >
+            <Eye className="w-4 h-4" />
+            <span>Mở Bảng Giám Sát Phòng Thi Trực Tiếp</span>
+          </Link>
+          <Link
+            to="/app/classes"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+          >
+            <span>Quay lại Quản lý Lớp học</span>
+          </Link>
+        </div>
       </div>
     );
   }

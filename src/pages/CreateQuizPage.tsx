@@ -16,6 +16,7 @@ import {
 import type { DifficultyLevel } from '../types';
 import { createQuizAndFlashcards } from '../services/storage';
 import { getStoredApiKey, sanitizeAcademicTopic } from '../services/aiService';
+import { getCurrentUser } from '../services/auth';
 
 export const CreateQuizPage = () => {
   const navigate = useNavigate();
@@ -562,30 +563,52 @@ Hệ điều hành đóng vai trò là cầu nối trung gian giữa phần cứ
               Tạo bộ câu hỏi & Flashcards thành công!
             </h3>
             <p className="text-sm text-slate-500 leading-relaxed">
-              Bộ câu hỏi đã được lưu an toàn. Bạn có thể làm bài kiểm tra tính giờ ngay bây giờ hoặc ôn lại bằng Flashcard.
+              {getCurrentUser().role === 'teacher'
+                ? 'Bộ câu hỏi đã được phân tích từ tài liệu thành công. Bạn có thể giao ngay đề thi này cho lớp học để theo dõi kết quả và nhận cảnh báo khi học sinh vi phạm chuyển tab.'
+                : 'Bộ câu hỏi đã được lưu an toàn. Bạn có thể làm bài kiểm tra tính giờ ngay bây giờ hoặc ôn lại bằng Flashcard.'}
             </p>
           </div>
 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              onClick={() => navigate(`/app/quiz/${completedQuizId}`)}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all hover:scale-102"
-            >
-              <span>Làm bài kiểm tra ngay</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => navigate('/app/flashcards')}
-              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm transition-colors"
-            >
-              Xem thẻ Flashcards
-            </button>
-            <button
-              onClick={() => navigate('/app/quiz-sets')}
-              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors"
-            >
-              Kho đề thi
-            </button>
+            {getCurrentUser().role === 'teacher' ? (
+              <>
+                <button
+                  onClick={() => navigate(`/app/classes?assignQuiz=${completedQuizId}`)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all hover:scale-102"
+                >
+                  <span>Giao ngay cho lớp học & Giám sát</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => navigate('/app/quiz-sets')}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors"
+                >
+                  Quản lý kho đề thi
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate(`/app/quiz/${completedQuizId}`)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all hover:scale-102"
+                >
+                  <span>Làm bài kiểm tra ngay</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => navigate('/app/flashcards')}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm transition-colors"
+                >
+                  Xem thẻ Flashcards
+                </button>
+                <button
+                  onClick={() => navigate('/app/quiz-sets')}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors"
+                >
+                  Kho đề thi
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

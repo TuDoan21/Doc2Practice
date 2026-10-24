@@ -14,8 +14,10 @@ import {
   CheckCircle2,
   Download,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Users
 } from 'lucide-react';
+import { getCurrentUser } from '../services/auth';
 import {
   getQuizSets,
   deleteQuizSet,
@@ -313,13 +315,23 @@ export const QuizSetsPage = () => {
                   </button>
                 </div>
 
-                <Link
-                  to={`/app/quiz/${quiz.id}`}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Luyện tập</span>
-                </Link>
+                {getCurrentUser().role === 'teacher' ? (
+                  <Link
+                    to={`/app/classes?assignQuiz=${quiz.id}`}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Giao cho lớp</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/app/quiz/${quiz.id}`}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-102"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Luyện tập</span>
+                  </Link>
+                )}
               </div>
             </div>
           ))}

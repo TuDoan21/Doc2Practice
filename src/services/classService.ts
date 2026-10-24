@@ -141,6 +141,40 @@ const initialSubmissions: StudentSubmission[] = [
     durationSeconds: 1100,
     tabSwitchCount: 4, // Vi phạm nhiều lần
     status: 'violation_auto_submitted',
+    lastViolationTime: '14:04',
+  },
+  {
+    id: 'sub-04',
+    assignmentId: 'asg-02',
+    classId: 'class-web-01',
+    className: 'Lập trình Web & TypeScript (SE104.P12)',
+    studentId: 'usr-student-05',
+    studentName: 'Trần Minh Đức',
+    studentEmail: 'duc.tm@uit.edu.vn',
+    score: 0,
+    correctCount: 0,
+    totalQuestions: 5,
+    submittedAt: 'Đang làm bài...',
+    durationSeconds: 420,
+    tabSwitchCount: 0,
+    status: 'taking',
+  },
+  {
+    id: 'sub-05',
+    assignmentId: 'asg-02',
+    classId: 'class-web-01',
+    className: 'Lập trình Web & TypeScript (SE104.P12)',
+    studentId: 'usr-student-06',
+    studentName: 'Đỗ Hoàng Long',
+    studentEmail: 'long.dh@uit.edu.vn',
+    score: 0,
+    correctCount: 0,
+    totalQuestions: 5,
+    submittedAt: 'Đang làm bài...',
+    durationSeconds: 610,
+    tabSwitchCount: 2, // Đã bị cảnh báo 2 lần thoát tab
+    lastViolationTime: '14:12',
+    status: 'taking',
   },
 ];
 
@@ -215,6 +249,9 @@ export const createClassroom = (params: {
   description: string;
 }): Classroom => {
   const user = getCurrentUser();
+  if (user.role !== 'teacher') {
+    throw new Error('Ràng buộc bảo mật: Chỉ tài khoản Giáo viên mới có quyền tạo lớp học.');
+  }
   const classes = getClassrooms();
 
   // Tạo mã lớp 6 ký tự ngẫu nhiên dễ nhớ
@@ -305,6 +342,10 @@ export const createAssignment = (params: {
   dueDate: string;
   totalQuestions: number;
 }): ClassAssignment => {
+  const user = getCurrentUser();
+  if (user.role !== 'teacher') {
+    throw new Error('Ràng buộc bảo mật: Chỉ tài khoản Giáo viên mới có quyền giao bài tập hoặc bài kiểm tra.');
+  }
   const assignments = getAssignments();
   const classroom = getClassroomById(params.classId);
 
@@ -368,11 +409,15 @@ export const recordStudentSubmission = (submission: Omit<StudentSubmission, 'id'
   const newSubmission: StudentSubmission = {
     ...submission,
     id: `sub-${Date.now()}`,
-    submittedAt: new Date().toLocaleString('vi-VN'),
+    submittedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN'),
   };
 
-  submissions.unshift(newSubmission);
-  localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(submissions));
+  // Loại bỏ bản ghi đang làm ('taking') của cùng sinh viên nếu có
+  const updatedSubmissions = submissions.filter(
+    (s) => !(s.assignmentId === submission.assignmentId && (s.studentId === submission.studentId || s.studentEmail === submission.studentEmail))
+  );
+  updatedSubmissions.unshift(newSubmission);
+  localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(updatedSubmissions));
 
   // Cập nhật số bài đã nộp của assignment
   const asg = assignments.find((a) => a.id === submission.assignmentId);
@@ -385,22 +430,127 @@ export const recordStudentSubmission = (submission: Omit<StudentSubmission, 'id'
   const classroom = getClassroomById(submission.classId);
   const teacherId = classroom?.teacherId;
   const violationNotice = submission.tabSwitchCount > 0
-    ? ` (⚠️ Phát hiện ${submission.tabSwitchCount} lần rời màn hình thi!)`
-    : ' (Không ghi nhận vi phạm)';
+    ? ` (⚠️ Đã vi phạm ${submission.tabSwitchCount} lần thoát màn hình thi!)`
+    : ' (Tuân thủ tốt, 0 lần thoát tab)';
 
   addNotification({
     recipientRole: 'teacher',
     recipientUserId: teacherId,
     title: submission.status === 'violation_auto_submitted'
-      ? 'Học sinh bị thu bài do vi phạm'
-      : 'Học sinh vừa nộp bài kiểm tra',
-    message: `${submission.studentName} (${submission.studentEmail}) vừa nộp bài "${asg?.title || 'Bài thi'}" trong lớp ${submission.className} - Đạt ${submission.score}% (${submission.correctCount}/${submission.totalQuestions} câu)${violationNotice}.`,
+      ? '🚨 ĐÃ THU BÀI DO GIAN LẬN THI CỬ'
+      : '✅ Học sinh vừa nộp bài kiểm tra',
+    message: `Học sinh ${submission.studentName} (${submission.studentEmail}) vừa nộp bài "${asg?.title || 'Bài thi'}" trong lớp ${submission.className} - Đạt ${submission.score}% (${submission.correctCount}/${submission.totalQuestions} câu)${violationNotice}.`,
     type: submission.tabSwitchCount > 0 ? 'violation' : 'submission',
-    link: '/app/classes',
+    link: `/app/classes?monitor=${submission.assignmentId}`,
   });
 
   window.dispatchEvent(new Event('submissions_updated'));
   return newSubmission;
+};
+
+// Ghi nhận học sinh vi phạm thoát tab thời gian thực và cảnh báo cho giáo viên
+export const recordStudentTabViolation = (params: {
+  assignmentId: string;
+  classId: string;
+  studentName: string;
+  studentEmail: string;
+  violationCount: number;
+  maxViolations: number;
+  autoSubmitted?: boolean;
+}): void => {
+  const asg = getAssignmentById(params.assignmentId);
+  const classroom = getClassroomById(params.classId);
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  // Cập nhật trạng thái sinh viên trong danh sách bài nộp
+  const submissions = getSubmissions();
+  let sub = submissions.find(
+    (s) => s.assignmentId === params.assignmentId && (s.studentEmail === params.studentEmail || s.studentName === params.studentName)
+  );
+
+  if (sub) {
+    sub.tabSwitchCount = params.violationCount;
+    sub.lastViolationTime = timeStr;
+    if (params.autoSubmitted) {
+      sub.status = 'violation_auto_submitted';
+      sub.submittedAt = `${timeStr} (Bị thu bài do gian lận)`;
+    }
+  } else {
+    sub = {
+      id: `sub-${Date.now()}`,
+      assignmentId: params.assignmentId,
+      classId: params.classId,
+      className: classroom?.name || 'Lớp học',
+      studentId: `std-${Date.now()}`,
+      studentName: params.studentName,
+      studentEmail: params.studentEmail,
+      score: 0,
+      correctCount: 0,
+      totalQuestions: asg?.totalQuestions || 5,
+      submittedAt: params.autoSubmitted ? `${timeStr} (Bị thu bài do gian lận)` : 'Đang làm bài...',
+      durationSeconds: 300,
+      tabSwitchCount: params.violationCount,
+      lastViolationTime: timeStr,
+      status: params.autoSubmitted ? 'violation_auto_submitted' : 'taking',
+    };
+    submissions.unshift(sub);
+  }
+  localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(submissions));
+
+  // GỬI THÔNG BÁO TỨC THÌ ĐẾN GIÁO VIÊN
+  addNotification({
+    recipientRole: 'teacher',
+    recipientUserId: classroom?.teacherId,
+    title: params.autoSubmitted
+      ? '🚨 THU BÀI DO GIAN LẬN: Quá số lần thoát tab!'
+      : `⚠️ CẢNH BÁO: Học sinh thoát tab lần ${params.violationCount}/${params.maxViolations}`,
+    message: `Học sinh ${params.studentName} (${params.studentEmail}) vừa rời khỏi màn hình làm bài lần thứ ${params.violationCount} trong bài thi "${asg?.title || 'Bài thi'}".${
+      params.autoSubmitted ? ' Hệ thống đã tự động khóa bài thi và thu bài.' : ''
+    }`,
+    type: 'violation',
+    link: `/app/classes?monitor=${params.assignmentId}`,
+  });
+
+  // Bắn Custom Event để Phòng Giám sát trực tiếp cập nhật banner đỏ và âm báo
+  window.dispatchEvent(
+    new CustomEvent('exam_tab_violation_detected', {
+      detail: {
+        ...params,
+        timestamp: timeStr,
+      },
+    })
+  );
+  window.dispatchEvent(new Event('submissions_updated'));
+};
+
+// Mô phỏng 1 học sinh vi phạm thoát tab để giáo viên kiểm chứng tính năng
+export const simulateStudentTabViolation = (assignmentId: string): { studentName: string; violationCount: number; autoSubmitted: boolean } | null => {
+  const asg = getAssignmentById(assignmentId);
+  if (!asg) return null;
+
+  const submissions = getSubmissions();
+  const candidates = submissions.filter((s) => s.assignmentId === assignmentId);
+  const targetStudent = candidates.find((s) => s.status === 'taking') || candidates[0];
+
+  const studentName = targetStudent ? targetStudent.studentName : 'Đỗ Hoàng Long';
+  const studentEmail = targetStudent ? targetStudent.studentEmail : 'long.dh@uit.edu.vn';
+  const currentViolations = targetStudent ? targetStudent.tabSwitchCount : 1;
+  const nextViolations = currentViolations + 1;
+  const maxAllowed = asg.maxTabSwitchViolations || 3;
+  const autoSubmitted = nextViolations >= maxAllowed;
+
+  recordStudentTabViolation({
+    assignmentId: asg.id,
+    classId: asg.classId,
+    studentName,
+    studentEmail,
+    violationCount: nextViolations,
+    maxViolations: maxAllowed,
+    autoSubmitted,
+  });
+
+  return { studentName, violationCount: nextViolations, autoSubmitted };
 };
 
 // ==================== NOTIFICATIONS ====================
@@ -447,3 +597,4 @@ export const markAllNotificationsAsRead = (): void => {
   localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(list));
   window.dispatchEvent(new Event('notifications_updated'));
 };
+
