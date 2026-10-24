@@ -9,6 +9,8 @@ import type {
 } from '../types';
 import { getCurrentUser } from './auth';
 import { mockClassMaterials } from '../data/mockData';
+import { checkPermission } from './rbac';
+import { recordAuditLog } from './auditService';
 
 const KEYS = {
   CLASSES: 'd2p_classes_v1',
@@ -249,11 +251,24 @@ export const createClassroom = (params: {
   name: string;
   subject: string;
   description: string;
+  schoolId?: string;
 }): Classroom => {
   const user = getCurrentUser();
-  if (user.role !== 'teacher') {
-    throw new Error('Ràng buộc bảo mật: Chỉ tài khoản Giáo viên mới có quyền tạo lớp học.');
+  const decision = checkPermission(user, 'class:create');
+
+  if (!decision.allowed) {
+    recordAuditLog({
+      actorId: user?.id || 'anonymous',
+      actorEmail: user?.email || '',
+      actorRole: user?.role || 'anonymous',
+      action: 'UNAUTHORIZED_ACCESS_BLOCKED',
+      targetType: 'classroom',
+      details: decision.reason || 'Ràng buộc bảo mật: Từ chối tạo lớp học do không đủ thẩm quyền.',
+      status: 'failure',
+    });
+    throw new Error(decision.reason || 'Ràng buộc bảo mật: Chỉ tài khoản Giáo viên hợp lệ mới có quyền tạo lớp học.');
   }
+
   const classes = getClassrooms();
 
   // Tạo mã lớp 6 ký tự ngẫu nhiên dễ nhớ
@@ -266,6 +281,7 @@ export const createClassroom = (params: {
     code,
     name: params.name,
     subject: params.subject,
+    schoolId: params.schoolId || user.schoolId || 'school-lhp',
     teacherId: user.id,
     teacherName: user.fullName,
     description: params.description,
@@ -276,6 +292,19 @@ export const createClassroom = (params: {
 
   classes.unshift(newClass);
   localStorage.setItem(KEYS.CLASSES, JSON.stringify(classes));
+
+  recordAuditLog({
+    actorId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    action: 'CLASSROOM_CREATED',
+    targetType: 'classroom',
+    targetId: newClass.id,
+    schoolId: newClass.schoolId,
+    details: `Tạo lớp học mới: "${newClass.name}" (${newClass.code}) tại trường ${newClass.schoolId}.`,
+    status: 'success',
+  });
+
   window.dispatchEvent(new Event('classes_updated'));
   return newClass;
 };
@@ -375,11 +404,27 @@ export const createAssignment = (params: {
   totalQuestions: number;
 }): ClassAssignment => {
   const user = getCurrentUser();
-  if (user.role !== 'teacher') {
-    throw new Error('Ràng buộc bảo mật: Chỉ tài khoản Giáo viên mới có quyền giao bài tập hoặc bài kiểm tra.');
-  }
-  const assignments = getAssignments();
   const classroom = getClassroomById(params.classId);
+
+  const decision = checkPermission(user, 'assignment:create', {
+    resourceTeacherId: classroom?.teacherId,
+    resourceSchoolId: classroom?.schoolId,
+  });
+
+  if (!decision.allowed) {
+    recordAuditLog({
+      actorId: user?.id || 'anonymous',
+      actorEmail: user?.email || '',
+      actorRole: user?.role || 'anonymous',
+      action: 'UNAUTHORIZED_ACCESS_BLOCKED',
+      targetType: 'assignment',
+      details: decision.reason || 'Ràng buộc bảo mật: Từ chối quyền tạo bài kiểm tra.',
+      status: 'failure',
+    });
+    throw new Error(decision.reason || 'Ràng buộc bảo mật: Bạn không có quyền giao bài tập/thi cho lớp học này.');
+  }
+
+  const assignments = getAssignments();
 
   const newAssignment: ClassAssignment = {
     id: `asg-${Date.now()}`,
@@ -399,6 +444,18 @@ export const createAssignment = (params: {
 
   assignments.unshift(newAssignment);
   localStorage.setItem(KEYS.ASSIGNMENTS, JSON.stringify(assignments));
+
+  recordAuditLog({
+    actorId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    action: 'ASSIGNMENT_CREATED',
+    targetType: 'assignment',
+    targetId: newAssignment.id,
+    schoolId: classroom?.schoolId,
+    details: `Tạo bài kiểm tra "${newAssignment.title}" (${newAssignment.type}) trong lớp ${newAssignment.className}.`,
+    status: 'success',
+  });
 
   // Gửi thông báo cho toàn bộ học sinh
   addNotification({

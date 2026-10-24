@@ -121,6 +121,7 @@ export interface Classroom {
   code: string; // Mã tham gia 6 ký tự, ví dụ: "UIT-8821"
   name: string;
   subject: string;
+  schoolId?: string; // ID trường quản lý lớp
   grade?: string; // Khối 10, Khối 11, Khối 12, ĐH...
   academicYear?: string; // 2026-2027
   teacherId: string;
@@ -180,4 +181,92 @@ export interface AppNotification {
   read: boolean;
   link?: string;
 }
+
+// ==================== SECURITY & RBAC MODELS ====================
+
+export interface UserRecord {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  schoolId?: string;
+  school?: string;
+  department?: string;
+  studentCode?: string;
+  teacherCode?: string;
+  avatarColor: string;
+  passwordHash: string;
+  passwordSalt: string;
+  failedLoginAttempts: number;
+  lockedUntil?: string;
+  status: 'active' | 'pending_approval' | 'locked';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Session {
+  token: string;
+  userId: string;
+  userRole: UserRole;
+  schoolId?: string;
+  issuedAt: string;
+  expiresAt: string;
+  lastActiveAt: string;
+  userAgent?: string;
+}
+
+export interface PasswordResetToken {
+  token: string;
+  email: string;
+  expiresAt: string;
+  used: boolean;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  actorId: string;
+  actorEmail: string;
+  actorRole: UserRole | 'anonymous';
+  action:
+    | 'LOGIN_SUCCESS'
+    | 'LOGIN_FAILED'
+    | 'ACCOUNT_LOCKED'
+    | 'LOGOUT'
+    | 'REGISTER_STUDENT'
+    | 'REGISTER_TEACHER_PENDING'
+    | 'TEACHER_APPROVED'
+    | 'TEACHER_REJECTED'
+    | 'PASSWORD_RESET_REQUESTED'
+    | 'PASSWORD_RESET_COMPLETED'
+    | 'PROFILE_UPDATED'
+    | 'UNAUTHORIZED_ACCESS_BLOCKED'
+    | 'ROLE_ESCALATION_BLOCKED'
+    | 'CROSS_SCHOOL_ACCESS_BLOCKED'
+    | 'CLASSROOM_CREATED'
+    | 'ASSIGNMENT_CREATED';
+  targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'system';
+  targetId?: string;
+  schoolId?: string;
+  details: string;
+  status: 'success' | 'failure';
+}
+
+export type Permission =
+  | 'class:create'
+  | 'class:read'
+  | 'class:update'
+  | 'class:delete'
+  | 'assignment:create'
+  | 'assignment:submit'
+  | 'proctor:monitor'
+  | 'teacher:approve'
+  | 'school:manage'
+  | 'audit:read';
+
+export type ApiResult<T> =
+  | { success: true; data: T; message?: string }
+  | { success: false; error: { code: string; message: string; details?: any } };
+
 

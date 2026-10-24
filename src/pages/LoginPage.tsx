@@ -12,7 +12,8 @@ import {
   Info
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
-import { loginUser, loginAsDemoRole } from '../services/auth';
+import { loginAsDemoRole, setSessionToken } from '../services/auth';
+import { loginApi, requestPasswordResetApi } from '../services/authApi';
 import type { UserRole } from '../types';
 
 export const LoginPage = () => {
