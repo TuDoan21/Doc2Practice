@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Clock,
   RotateCcw,
@@ -10,9 +10,17 @@ import {
   XCircle,
   AlertTriangle,
   Award,
-  BarChart3
+  BarChart3,
+  Zap,
+  Sparkles
 } from 'lucide-react';
-import { getHistory, deleteHistoryAttempt, clearAllHistory } from '../services/storage';
+import {
+  getHistory,
+  deleteHistoryAttempt,
+  clearAllHistory,
+  getUniqueMistakes,
+  createMistakeBankQuizSet
+} from '../services/storage';
 import type { QuizAttempt } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
 import { Modal } from '../components/common/Modal';
@@ -29,6 +37,18 @@ export const HistoryPage = () => {
   useEffect(() => {
     refreshHistory();
   }, []);
+
+  const navigate = useNavigate();
+  const mistakes = getUniqueMistakes();
+
+  const handleStartMistakePractice = () => {
+    const newQuiz = createMistakeBankQuizSet();
+    if (newQuiz) {
+      navigate(`/app/quiz/${newQuiz.id}`);
+    } else {
+      alert('Hiện bạn chưa có câu hỏi nào làm sai. Rất tuyệt vời!');
+    }
+  };
 
   const handleDeleteOne = (id: string) => {
     if (window.confirm('Xóa bản ghi lịch sử này?')) {
@@ -82,7 +102,7 @@ export const HistoryPage = () => {
 
       {/* Metrics Cards */}
       {history.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
               <BarChart3 className="w-5 h-5" />
@@ -112,6 +132,43 @@ export const HistoryPage = () => {
               <div className="text-xl font-extrabold text-slate-900">{formatDuration(totalSeconds)}</div>
             </div>
           </div>
+
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+              <Zap className="w-5 h-5 fill-current" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-400 font-medium">Câu sai tích lũy</div>
+              <div className="text-xl font-extrabold text-amber-600">{mistakes.length} câu</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mistake Bank Banner */}
+      {mistakes.length > 0 && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-purple-500/10 border border-amber-300/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-fadeIn">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800">
+              <Zap className="w-4 h-4 text-amber-600 fill-current" />
+              <span>Ngân hàng câu hỏi sai thông minh (Mistake Bank)</span>
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900">
+              Hệ thống phát hiện {mistakes.length} câu hỏi bạn từng làm sai
+            </h3>
+            <p className="text-xs text-slate-600 max-w-xl">
+              Tạo ngay một bộ đề luyện tập chuyên biệt chứa các câu hỏi này để khắc phục triệt để lỗ hổng kiến thức trước kỳ thi.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleStartMistakePractice}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md transition-all hover:scale-102 shrink-0"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>Luyện tập {mistakes.length} câu sai ngay</span>
+          </button>
         </div>
       )}
 

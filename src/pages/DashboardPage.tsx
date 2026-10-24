@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   FileText,
   HelpCircle,
@@ -10,7 +10,8 @@ import {
   Sparkles,
   BookOpen,
   Award,
-  Calendar
+  Calendar,
+  Zap
 } from 'lucide-react';
 import {
   AreaChart,
@@ -21,23 +22,32 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from 'recharts';
-import { getDocuments, getQuizSets, getStats } from '../services/storage';
+import {
+  getDocuments,
+  getQuizSets,
+  getStats,
+  getUniqueMistakes,
+  createMistakeBankQuizSet
+} from '../services/storage';
 import { getCurrentUser, type UserProfile } from '../services/auth';
 import type { DocumentItem, QuizSet, UserStats } from '../types';
 import { DifficultyBadge } from '../components/common/Badge';
 import { weeklyActivityData } from '../data/mockData';
 
 export const DashboardPage = () => {
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const [stats, setStats] = useState<UserStats>(getStats());
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [quizSets, setQuizSets] = useState<QuizSet[]>([]);
+  const [mistakesCount, setMistakesCount] = useState(0);
 
   useEffect(() => {
     setStats(getStats());
     setDocuments(getDocuments().slice(0, 3));
     setQuizSets(getQuizSets().slice(0, 3));
     setCurrentUser(getCurrentUser());
+    setMistakesCount(getUniqueMistakes().length);
 
     const handleAuthChange = () => {
       setCurrentUser(getCurrentUser());
@@ -45,6 +55,13 @@ export const DashboardPage = () => {
     window.addEventListener('auth_state_changed', handleAuthChange);
     return () => window.removeEventListener('auth_state_changed', handleAuthChange);
   }, []);
+
+  const handleStartMistakesFromDashboard = () => {
+    const newQuiz = createMistakeBankQuizSet();
+    if (newQuiz) {
+      navigate(`/app/quiz/${newQuiz.id}`);
+    }
+  };
 
   return (
     <div className="space-y-8 pb-10">
@@ -129,6 +146,35 @@ export const DashboardPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Mistake Bank Callout Banner */}
+      {mistakesCount > 0 && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-violet-500/10 border border-amber-300/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shrink-0 shadow-sm">
+              <Zap className="w-5 h-5 fill-current" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                Góc khắc phục lỗ hổng: Có {mistakesCount} câu hỏi bạn từng làm sai
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Ôn luyện lại các câu sai là chìa khóa để đạt điểm tối đa trong kỳ thi thật.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleStartMistakesFromDashboard}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all hover:scale-102 shrink-0 self-start sm:self-auto"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Luyện tập ngay</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Progress Chart & Quick Tips */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

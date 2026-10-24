@@ -18,14 +18,29 @@
 - **Kho tài liệu mẫu sẵn có:** Có sẵn các file mẫu về *React & TypeScript*, *Lập trình Web*, *Tiếng Anh TOEIC* để trải nghiệm tức thì.
 
 ### 3. 🎯 Phòng Luyện Thi Chuyên Nghiệp (Quiz Simulator)
+- **2 Chế độ học tập linh hoạt:**
+  - **Chế độ Thi thử (Exam Mode):** Tính giờ nghiêm túc, làm xong nộp bài mới biết điểm và lời giải.
+  - **Chế độ Ôn luyện (Study Mode):** Chọn câu nào biết ngay đúng/sai tức thì kèm **hộp giải thích chi tiết & mẹo nhớ bài** mở ra ngay bên dưới.
 - **Đồng hồ đếm thời gian thực** (Real-time timer).
 - **Thanh tiến độ & Đánh dấu câu hỏi (Bookmark):** Đánh dấu câu hỏi cần xem lại và di chuyển nhanh qua thanh điều hướng 20 ô số.
-- **Xác nhận nộp bài:** Cảnh báo các câu chưa trả lời.
-- **Màn hình tổng kết điểm & Hiệu ứng ăn mừng (Confetti):** Thưởng hiệu ứng pháo hoa khi đạt kết quả xuất sắc.
+- **Xác nhận nộp bài & Bắn pháo hoa (Confetti):** Thưởng hiệu ứng pháo hoa khi đạt kết quả xuất sắc.
 - **Chế độ "Luyện lại chỉ các câu sai":** Tự động lọc các câu làm sai để luyện tập lại ngay lập tức (Targeted Remediation).
 - **In ấn & Xuất đề thi:** Nút In phiếu kết quả bài thi hoặc đề thi ra PDF/máy in.
 
-### 4. 🎴 Thẻ Ghi Nhớ Flashcard 3D Thông Minh
+### 4. ⚡ Ngân Hàng Câu Hỏi Sai Toàn Diện (Smart Mistake Bank)
+- Tự động thống kê và loại bỏ trùng lặp mọi câu hỏi người học từng làm sai trong lịch sử kiểm tra.
+- **1-Click Tạo đề ôn câu sai:** Ngay tại Dashboard và trang Lịch sử, người học chỉ cần bấm nút để tạo ngay một bộ đề ôn tập chuyên biệt nhằm lấp đầy lỗ hổng kiến thức trước kỳ thi thật.
+
+### 5. 📦 Sao Lưu & Chia Sẻ Đa Nền Tảng (Export / Import)
+- **Xuất dữ liệu:** Xuất bộ đề thi hoặc Flashcard ra file **JSON** (để sao lưu hoặc chia sẻ cho bạn bè) hoặc file **CSV/TSV chuẩn Anki / Quizlet**.
+- **Nhập dữ liệu (Import JSON):** Cho phép nhập bộ đề thi hoặc bộ flashcard từ file JSON bất kỳ vào hệ thống chỉ với một thao tác.
+
+### 6. ⏱️ Đồng Hồ Tập Trung Pomodoro (Focus Pomodoro Tool)
+- Tích hợp trực tiếp trên Header: thiết lập chuẩn **25 phút tập trung / 5 phút nghỉ ngơi**.
+- Âm thanh báo hiệu nhẹ nhàng bằng Web Audio API khi hoàn thành chu kỳ.
+- Tự động đếm và lưu lại số chu kỳ Pomodoro đã hoàn thành trong ngày để duy trì kỷ luật học tập.
+
+### 7. 🎴 Thẻ Ghi Nhớ Flashcard 3D Thông Minh
 - **Hiệu ứng lật thẻ 3D mượt mà** với mặt trước (Khái niệm/Thuật ngữ) và mặt sau (Giải thích chi tiết & Ví dụ).
 - **Hỗ trợ phím tắt tiện lợi:**
   - `Space`: Lật thẻ
@@ -35,12 +50,12 @@
 - **Theo dõi Spaced Repetition:** Phân loại thẻ thành *Đã nhớ* và *Cần ôn lại*, hiển thị thanh tiến độ ghi nhớ theo thời gian thực.
 - **Quản lý bộ thẻ:** Thêm thẻ ghi nhớ mới tùy chỉnh hoặc xóa thẻ khỏi bộ.
 
-### 5. 📊 Bảng Thống Kê & Lịch Sử Luyện Tập
+### 8. 📊 Bảng Thống Kê & Lịch Sử Luyện Tập
 - **Dashboard trực quan:** 4 chỉ số cốt lõi (Tài liệu, Bộ câu hỏi, Câu đã làm, Điểm trung bình).
 - **Biểu đồ hoạt động 7 ngày (Recharts AreaChart):** Theo dõi tần suất học và biến thiên điểm số.
 - **Lịch sử làm bài chi tiết:** Xem lại từng lượt thi, số câu đúng/sai, thời gian làm và mở modal xem lại chi tiết từng câu.
 
-### 6. 🔐 Quản Lý Hồ Sơ & Xác Thực Người Dùng
+### 9. 🔐 Quản Lý Hồ Sơ & Xác Thực Người Dùng
 - **Đăng nhập (`/login`) & Đăng ký (`/register`):** Thiết kế 2 cột chuẩn SaaS hiện đại, kiểm tra email/mật khẩu, thanh đo độ mạnh mật khẩu và modal điều khoản bảo mật.
 - **Cơ chế 1-Click Demo:** Đăng nhập tức thì chỉ với một thao tác.
 - **Hồ sơ cá nhân (`/app/settings`):** Tùy chỉnh Họ tên, Trường/Tổ chức và chọn 5 bảng màu avatar gradient sang trọng.

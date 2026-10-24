@@ -13,7 +13,9 @@ import {
   AlertTriangle,
   Award,
   Bookmark,
-  Printer
+  Printer,
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { getQuizSetById, recordQuizAttempt } from '../services/storage';
 import type { QuizSet, QuizAttempt, Question } from '../types';
@@ -35,6 +37,9 @@ export const QuizPlayerPage = () => {
 
   // Timer state
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+  // Chế độ: Thi thử ('exam') vs Ôn luyện tức thì ('study')
+  const [learningMode, setLearningMode] = useState<'exam' | 'study'>('exam');
 
   // Chế độ đang làm lại câu sai
   const [isWrongOnlyMode, setIsWrongOnlyMode] = useState(false);
@@ -263,12 +268,42 @@ export const QuizPlayerPage = () => {
           </div>
         </div>
 
+        {/* Mode Selector and Progress Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-100">
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setLearningMode('exam')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                learningMode === 'exam'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Thi thử (Tính điểm)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLearningMode('study')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                learningMode === 'study'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Ôn luyện (Hiện giải thích ngay)</span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium">
+            Tiến độ: <strong className="text-slate-800">{answeredCount}/{totalQuestions} câu</strong> ({progressPercent}%)
+          </div>
+        </div>
+
         {/* Progress Bar */}
         <div>
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5 font-medium">
-            <span>Tiến độ hoàn thành: {answeredCount}/{totalQuestions} câu</span>
-            <span>{progressPercent}%</span>
-          </div>
           <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
             <div
               className="h-full bg-indigo-600 rounded-full transition-all duration-300"
@@ -340,33 +375,72 @@ export const QuizPlayerPage = () => {
           <div className="space-y-3 pt-2">
             {currentQuestion.options.map((opt, optIdx) => {
               const isSelected = selectedAnswers[currentIndex] === optIdx;
+              const hasAnswered = selectedAnswers[currentIndex] !== undefined;
+              const isCorrectAnswer = optIdx === currentQuestion.correctAnswerIndex;
               const optionLetter = String.fromCharCode(65 + optIdx);
+
+              // Phân định giao diện theo chế độ Ôn luyện (Study) hay Thi thử (Exam)
+              let buttonStyle = 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700';
+              let badgeStyle = 'bg-slate-100 text-slate-600 group-hover:bg-slate-200';
+
+              if (learningMode === 'study' && hasAnswered) {
+                if (isCorrectAnswer) {
+                  buttonStyle = 'border-emerald-500 bg-emerald-50/80 text-emerald-950 font-semibold ring-1 ring-emerald-500 shadow-sm';
+                  badgeStyle = 'bg-emerald-600 text-white';
+                } else if (isSelected && !isCorrectAnswer) {
+                  buttonStyle = 'border-rose-500 bg-rose-50/80 text-rose-950 font-semibold ring-1 ring-rose-500 shadow-sm';
+                  badgeStyle = 'bg-rose-600 text-white';
+                } else {
+                  buttonStyle = 'border-slate-200 bg-white opacity-60 text-slate-500 cursor-not-allowed';
+                }
+              } else if (isSelected) {
+                buttonStyle = 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-semibold shadow-sm ring-1 ring-indigo-600';
+                badgeStyle = 'bg-indigo-600 text-white';
+              }
 
               return (
                 <button
                   key={optIdx}
                   type="button"
                   onClick={() => handleSelectOption(optIdx)}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start gap-3.5 group ${
-                    isSelected
-                      ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-semibold shadow-sm ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700'
-                  }`}
+                  disabled={learningMode === 'study' && hasAnswered}
+                  className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start gap-3.5 group ${buttonStyle}`}
                 >
                   <span
-                    className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                    }`}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${badgeStyle}`}
                   >
                     {optionLetter}
                   </span>
-                  <span className="text-sm leading-relaxed pt-0.5">{opt}</span>
+                  <span className="text-sm leading-relaxed pt-0.5 flex-1">{opt}</span>
+
+                  {learningMode === 'study' && hasAnswered && isCorrectAnswer && (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 self-center" />
+                  )}
+                  {learningMode === 'study' && hasAnswered && isSelected && !isCorrectAnswer && (
+                    <XCircle className="w-5 h-5 text-rose-600 shrink-0 self-center" />
+                  )}
                 </button>
               );
             })}
           </div>
+
+          {/* Hộp giải thích tức thì trong Chế độ Ôn luyện */}
+          {learningMode === 'study' && selectedAnswers[currentIndex] !== undefined && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/90 border border-indigo-200/80 text-slate-800 space-y-2 animate-fadeIn shadow-xs">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span className={selectedAnswers[currentIndex] === currentQuestion.correctAnswerIndex ? 'text-emerald-700' : 'text-rose-700'}>
+                  {selectedAnswers[currentIndex] === currentQuestion.correctAnswerIndex
+                    ? '🎉 Xuất sắc! Bạn đã chọn đáp án chính xác'
+                    : `❌ Chưa đúng! Đáp án đúng là: ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.options[currentQuestion.correctAnswerIndex]}`}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                <strong className="font-semibold text-slate-900">Giải thích chi tiết: </strong>
+                {currentQuestion.explanation}
+              </p>
+            </div>
+          )}
 
           {/* Navigation Controls */}
           <div className="flex items-center justify-between pt-6 border-t border-slate-100">

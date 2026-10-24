@@ -8,10 +8,12 @@ import {
   LogOut,
   Settings,
   ChevronDown,
-  AlertTriangle
+  AlertTriangle,
+  Timer
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Modal } from './Modal';
+import { PomodoroModal } from './PomodoroModal';
 import { getCurrentUser, logoutUser, type UserProfile } from '../../services/auth';
 
 interface HeaderProps {
@@ -22,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showPomodoro, setShowPomodoro] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const navigate = useNavigate();
@@ -98,7 +101,18 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
       </div>
 
       {/* Right: Notifications & User profile */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-2.5 sm:gap-4">
+        {/* Pomodoro Focus Timer Button */}
+        <button
+          type="button"
+          onClick={() => setShowPomodoro(true)}
+          title="Đồng hồ tập trung Pomodoro (25 phút học / 5 phút nghỉ)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 shadow-xs transition-all hover:scale-105"
+        >
+          <Timer className="w-4 h-4 text-indigo-600" />
+          <span className="hidden md:inline">Pomodoro</span>
+        </button>
+
         {/* Notification Bell */}
         <div className="relative" ref={notificationRef}>
           <button
@@ -245,6 +259,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
           </div>
         </div>
       </Modal>
+
+      {/* Pomodoro Focus Timer Modal */}
+      <PomodoroModal
+        isOpen={showPomodoro}
+        onClose={() => setShowPomodoro(false)}
+      />
     </header>
   );
 };

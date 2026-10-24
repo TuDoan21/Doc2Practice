@@ -463,3 +463,168 @@ export const simulateAIGeneration = (
 
   return newQuizSet;
 };
+
+// ==================== EXPORT / IMPORT UTILS ====================
+
+// Trợ giúp tải file về máy
+export const downloadFile = (filename: string, content: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Xuất bộ đề ra file JSON
+export const exportQuizSetJson = (quizSet: QuizSet) => {
+  const data = JSON.stringify(quizSet, null, 2);
+  const safeTitle = quizSet.title.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+  downloadFile(`${safeTitle}_quiz.json`, data, 'application/json');
+};
+
+// Xuất bộ đề ra CSV chuẩn Anki / Quizlet
+export const exportQuizSetCsv = (quizSet: QuizSet) => {
+  let csvContent = 'Câu hỏi\tĐáp án đúng & Giải thích\n';
+  quizSet.questions.forEach((q) => {
+    const front = `"${q.question.replace(/"/g, '""')}\n\nA. ${q.options[0]}\nB. ${q.options[1]}\nC. ${q.options[2]}\nD. ${q.options[3]}"`;
+    const back = `"Đáp án: ${String.fromCharCode(65 + q.correctAnswerIndex)}. ${q.options[q.correctAnswerIndex]}\n\nGiải thích: ${q.explanation.replace(/"/g, '""')}"`;
+    csvContent += `${front}\t${back}\n`;
+  });
+  const safeTitle = quizSet.title.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+  downloadFile(`${safeTitle}_anki.tsv`, csvContent, 'text/tab-separated-values;charset=utf-8;');
+};
+
+// Nhập bộ đề từ JSON
+export const importQuizSetJson = (jsonString: string): QuizSet => {
+  const parsed = JSON.parse(jsonString);
+  if (!parsed.title || !Array.isArray(parsed.questions) || parsed.questions.length === 0) {
+    throw new Error('Dữ liệu JSON không hợp lệ hoặc không có danh sách câu hỏi.');
+  }
+
+  const newQuizSet: QuizSet = {
+    id: `quiz-imported-${Date.now()}`,
+    title: `${parsed.title} (Đã nhập)`,
+    description: parsed.description || 'Bộ câu hỏi được nhập từ file dữ liệu.',
+    sourceDocumentName: parsed.sourceDocumentName || 'Tệp nhập khẩu',
+    sourceDocumentSize: parsed.sourceDocumentSize || '150 KB',
+    questionCount: parsed.questions.length,
+    difficulty: parsed.difficulty || 'medium',
+    createdAt: new Date().toISOString().split('T')[0],
+    lastScore: null,
+    category: parsed.category || 'Tệp đã nhập',
+    questions: parsed.questions.map((q: any, idx: number) => ({
+      id: `q-imp-${Date.now()}-${idx}`,
+      question: q.question || `Câu hỏi ${idx + 1}`,
+      options: Array.isArray(q.options) && q.options.length >= 2 ? q.options : ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D'],
+      correctAnswerIndex: typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : 0,
+      explanation: q.explanation || 'Chưa có giải thích chi tiết.'
+    }))
+  };
+
+  saveQuizSet(newQuizSet);
+  return newQuizSet;
+};
+
+// Xuất bộ Flashcards ra file JSON
+export const exportFlashcardDeckJson = (deck: FlashcardDeck) => {
+  const data = JSON.stringify(deck, null, 2);
+  const safeTitle = deck.title.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+  downloadFile(`${safeTitle}_flashcards.json`, data, 'application/json');
+};
+
+// Xuất bộ Flashcards ra Anki TSV
+export const exportFlashcardDeckAnki = (deck: FlashcardDeck) => {
+  let content = 'Front\tBack\n';
+  deck.cards.forEach((card) => {
+    const front = `"${card.front.replace(/"/g, '""')}"`;
+    const back = `"${card.back.replace(/"/g, '""')}"`;
+    content += `${front}\t${back}\n`;
+  });
+  const safeTitle = deck.title.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+  downloadFile(`${safeTitle}_anki.tsv`, content, 'text/tab-separated-values;charset=utf-8;');
+};
+
+// Nhập bộ Flashcard từ JSON
+export const importFlashcardDeckJson = (jsonString: string): FlashcardDeck => {
+  const parsed = JSON.parse(jsonString);
+  if (!parsed.title || !Array.isArray(parsed.cards) || parsed.cards.length === 0) {
+    throw new Error('Dữ liệu JSON không hợp lệ hoặc không có danh sách thẻ ghi nhớ.');
+  }
+
+  const decks = getFlashcardDecks();
+  const newDeck: FlashcardDeck = {
+    id: `deck-imp-${Date.now()}`,
+    title: `${parsed.title} (Đã nhập)`,
+    sourceDocumentName: parsed.sourceDocumentName || 'Tệp nhập khẩu',
+    cards: parsed.cards.map((c: any, idx: number) => ({
+      id: `card-imp-${Date.now()}-${idx}`,
+      front: c.front || `Thuật ngữ ${idx + 1}`,
+      back: c.back || 'Định nghĩa / Giải thích',
+      status: 'new'
+    }))
+  };
+
+  decks.unshift(newDeck);
+  localStorage.setItem(KEYS.FLASHCARDS, JSON.stringify(decks));
+  return newDeck;
+};
+
+// ==================== MISTAKE BANK (NGÂN HÀNG CÂU HỎI SAI) ====================
+
+// Lấy danh sách tất cả các câu hỏi từng làm sai (đã loại bỏ trùng lặp)
+export const getUniqueMistakes = (): Question[] => {
+  const history = getHistory();
+  const quizSets = getQuizSets();
+  const mistakeMap = new Map<string, Question>();
+
+  // Bản đồ tra cứu nhanh câu hỏi theo ID từ các bộ đề
+  const questionMap = new Map<string, Question>();
+  quizSets.forEach((qs) => {
+    qs.questions.forEach((q) => {
+      questionMap.set(q.id, q);
+    });
+  });
+
+  history.forEach((attempt) => {
+    attempt.answers.forEach((ans) => {
+      if (!ans.isCorrect) {
+        const found = questionMap.get(ans.questionId);
+        if (found) {
+          const key = found.question.trim().toLowerCase();
+          if (!mistakeMap.has(key)) {
+            mistakeMap.set(key, found);
+          }
+        }
+      }
+    });
+  });
+
+  return Array.from(mistakeMap.values());
+};
+
+// Tạo đề ôn tập từ ngân hàng câu sai
+export const createMistakeBankQuizSet = (): QuizSet | null => {
+  const mistakes = getUniqueMistakes();
+  if (mistakes.length === 0) return null;
+
+  const newQuizSet: QuizSet = {
+    id: `quiz-mistakes-${Date.now()}`,
+    title: `⚡ Ôn Tập Lỗ Hổng Kiến Thức (${mistakes.length} câu đã từng sai)`,
+    description: `Bộ câu hỏi tổng hợp tất cả các câu hỏi bạn từng trả lời sai trong lịch sử kiểm tra.`,
+    sourceDocumentName: 'Ngân hàng câu hỏi sai cá nhân',
+    sourceDocumentSize: `${mistakes.length * 2} KB`,
+    questionCount: mistakes.length,
+    difficulty: 'hard',
+    createdAt: new Date().toISOString().split('T')[0],
+    lastScore: null,
+    category: 'Ngân hàng câu sai',
+    questions: mistakes
+  };
+
+  saveQuizSet(newQuizSet);
+  return newQuizSet;
+};

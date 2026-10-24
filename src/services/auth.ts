@@ -122,3 +122,4 @@ export const logoutUser = (): void => {
   localStorage.removeItem(CURRENT_USER_KEY);
   window.dispatchEvent(new Event('auth_state_changed'));
 };
+

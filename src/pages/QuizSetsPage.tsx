@@ -11,9 +11,19 @@ import {
   Printer,
   Edit3,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
-import { getQuizSets, deleteQuizSet, saveQuizSet } from '../services/storage';
+import {
+  getQuizSets,
+  deleteQuizSet,
+  saveQuizSet,
+  exportQuizSetJson,
+  exportQuizSetCsv,
+  importQuizSetJson
+} from '../services/storage';
 import type { QuizSet, DifficultyLevel } from '../types';
 import { DifficultyBadge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
@@ -32,9 +42,30 @@ export const QuizSetsPage = () => {
   const [editingQuiz, setEditingQuiz] = useState<QuizSet | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   const refreshList = () => {
     setQuizSets(getQuizSets());
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const imported = importQuizSetJson(text);
+        refreshList();
+        setImportStatus(`Đã nhập thành công bộ đề: "${imported.title}" (${imported.questionCount} câu)`);
+        setTimeout(() => setImportStatus(null), 4000);
+      } catch (err: any) {
+        alert(err.message || 'Lỗi khi nhập file JSON. Vui lòng kiểm tra lại định dạng file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   useEffect(() => {
@@ -124,14 +155,35 @@ export const QuizSetsPage = () => {
           </p>
         </div>
 
-        <Link
-          to="/app/create-quiz"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all hover:scale-102 self-start sm:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Tạo bộ câu hỏi mới</span>
-        </Link>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm border border-slate-200 shadow-xs cursor-pointer transition-all hover:scale-102">
+            <Upload className="w-4 h-4 text-indigo-600" />
+            <span>Nhập đề thi (JSON)</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+          </label>
+
+          <Link
+            to="/app/create-quiz"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all hover:scale-102"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Tạo bộ câu hỏi mới</span>
+          </Link>
+        </div>
       </div>
+
+      {/* Import Notification Banner */}
+      {importStatus && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold flex items-center gap-3 animate-fadeIn">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{importStatus}</span>
+        </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -242,14 +294,24 @@ export const QuizSetsPage = () => {
 
               {/* Card Actions */}
               <div className="p-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPreviewingQuiz(quiz)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-white text-xs font-semibold transition-colors"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Xem đề thi</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewingQuiz(quiz)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-white text-xs font-semibold transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Xem đề thi</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportQuizSetJson(quiz)}
+                    title="Xuất ra file JSON"
+                    className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
                 <Link
                   to={`/app/quiz/${quiz.id}`}
@@ -286,14 +348,34 @@ export const QuizSetsPage = () => {
                 <p><span className="font-bold">Tài liệu:</span> {previewingQuiz.sourceDocumentName}</p>
                 <p><span className="font-bold">Số lượng:</span> {previewingQuiz.questions.length} câu hỏi • Mức độ: {previewingQuiz.difficulty}</p>
               </div>
-              <button
-                type="button"
-                onClick={handlePrintExam}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-slate-700 hover:text-indigo-600 border border-slate-200 text-xs font-bold shadow-sm transition-all hover:scale-105"
-              >
-                <Printer className="w-4 h-4" />
-                <span>In đề thi</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportQuizSetJson(previewingQuiz)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-slate-700 hover:text-indigo-600 border border-slate-200 text-xs font-bold shadow-xs transition-all hover:bg-slate-50"
+                  title="Tải file JSON để sao lưu hoặc chia sẻ"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Xuất JSON</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportQuizSetCsv(previewingQuiz)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-slate-700 hover:text-emerald-600 border border-slate-200 text-xs font-bold shadow-xs transition-all hover:bg-slate-50"
+                  title="Tải file CSV/TSV chuẩn để nhập vào Anki hoặc Quizlet"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Xuất Anki</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintExam}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold shadow-sm transition-all hover:scale-105"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>In đề thi</span>
+                </button>
+              </div>
             </div>
 
             {/* Danh sách câu hỏi */}

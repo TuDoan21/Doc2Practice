@@ -13,14 +13,20 @@ import {
   Trash2,
   Sparkles,
   BookOpen,
-  Search
+  Search,
+  Download,
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   getFlashcardDecks,
   updateCardStatus,
   addCardToDeck,
   deleteCardFromDeck,
-  resetDeckProgress
+  resetDeckProgress,
+  exportFlashcardDeckJson,
+  exportFlashcardDeckAnki,
+  importFlashcardDeckJson
 } from '../services/storage';
 import type { FlashcardDeck, Flashcard } from '../types';
 import { Modal } from '../components/common/Modal';
@@ -42,13 +48,38 @@ export const FlashcardPage = () => {
 
   // Table search
   const [searchWord, setSearchWord] = useState('');
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
-  const refreshDecks = () => {
+  const refreshDecks = (newActiveId?: string) => {
     const loaded = getFlashcardDecks();
     setDecks(loaded);
-    if (loaded.length > 0 && !activeDeckId) {
+    if (newActiveId) {
+      setActiveDeckId(newActiveId);
+    } else if (loaded.length > 0 && !activeDeckId) {
       setActiveDeckId(loaded[0].id);
     }
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const imported = importFlashcardDeckJson(text);
+        refreshDecks(imported.id);
+        setCurrentCardIndex(0);
+        setIsFlipped(false);
+        setImportNotice(`Đã nhập thành công bộ thẻ: "${imported.title}" (${imported.cards.length} thẻ)`);
+        setTimeout(() => setImportNotice(null), 4000);
+      } catch (err: any) {
+        alert(err.message || 'Lỗi khi nhập file JSON. Vui lòng kiểm tra định dạng.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   useEffect(() => {
@@ -210,7 +241,7 @@ export const FlashcardPage = () => {
         </div>
 
         {/* Deck Selector & Add button */}
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <select
             value={activeDeckId}
             onChange={(e) => {
@@ -219,7 +250,7 @@ export const FlashcardPage = () => {
               setIsFlipped(false);
               setIsAutoPlay(false);
             }}
-            className="py-2.5 px-3.5 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            className="py-2 px-3 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           >
             {decks.map((deck) => (
               <option key={deck.id} value={deck.id}>
@@ -228,16 +259,55 @@ export const FlashcardPage = () => {
             ))}
           </select>
 
+          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 shadow-xs cursor-pointer transition-all">
+            <Upload className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Nhập JSON</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => exportFlashcardDeckJson(currentDeck)}
+            title="Xuất bộ thẻ ra file JSON"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 shadow-xs transition-all"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Xuất JSON</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => exportFlashcardDeckAnki(currentDeck)}
+            title="Xuất bộ thẻ ra file Anki / Quizlet TSV"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 shadow-xs transition-all"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Anki</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsAddCardOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm thẻ</span>
           </button>
         </div>
       </div>
+
+      {/* Notification Banner */}
+      {importNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold flex items-center gap-2.5 animate-fadeIn">
+          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{importNotice}</span>
+        </div>
+      )}
 
       {/* Progress & Deck Status Bar */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm space-y-3">
