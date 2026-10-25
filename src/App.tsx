@@ -18,6 +18,9 @@ import { ClassroomsPage } from './pages/ClassroomsPage';
 import { SchoolsManagementPage } from './pages/SchoolsManagementPage';
 import { SubjectsManagementPage } from './pages/SubjectsManagementPage';
 import { SchoolAdminPage } from './pages/SchoolAdminPage';
+import { QuestionBankPage } from './pages/QuestionBankPage';
+import { TakeAssessmentPage } from './pages/TakeAssessmentPage';
+import { AssessmentResultPage } from './pages/AssessmentResultPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -67,6 +70,10 @@ function App() {
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="classes" element={<ClassroomsPage />} />
+          <Route path="assessment/:id/take" element={<TakeAssessmentPage />} />
+          <Route path="assessment/:id/result" element={<AssessmentResultPage />} />
+          <Route path="attempt/:id/result" element={<AssessmentResultPage />} />
+          <Route path="question-bank" element={<QuestionBankPage />} />
           <Route path="schools" element={<SchoolsManagementPage />} />
           <Route path="subjects" element={<SubjectsManagementPage />} />
           <Route path="school-admin" element={<SchoolAdminPage />} />

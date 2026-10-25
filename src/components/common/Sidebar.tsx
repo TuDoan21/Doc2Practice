@@ -57,19 +57,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       items.push({ label: 'Quản lý Trường học', path: '/app/schools', icon: School });
       items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
       items.push({ label: 'Toàn bộ Lớp học', path: '/app/classes', icon: Users });
+      items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
     } else if (currentUser.role === 'school_admin') {
       items.push({ label: 'Trường & Nhân sự', path: '/app/school-admin', icon: School });
       items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
       items.push({ label: 'Lớp học & Phân công', path: '/app/classes', icon: Users });
+      items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
     } else if (currentUser.role === 'teacher') {
       items.push({ label: 'Quản lý Lớp học', path: '/app/classes', icon: Users });
+      items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
     } else {
       items.push({ label: 'Lớp học của tôi', path: '/app/classes', icon: Users });
     }
 
     items.push(
-      { label: 'Tài liệu của tôi', path: '/app/documents', icon: FileText },
-      { label: 'Bộ câu hỏi', path: '/app/quiz-sets', icon: HelpCircle },
+      { label: currentUser.role === 'student' ? 'Tài liệu học tập' : 'Quản lý Tài liệu', path: '/app/documents', icon: FileText },
+      { label: 'Bộ đề luyện thi', path: '/app/quiz-sets', icon: BookOpen },
       { label: 'Flashcard ghi nhớ', path: '/app/flashcards', icon: Layers },
       { label: 'Lịch sử luyện tập', path: '/app/history', icon: History },
       { label: 'Cài đặt', path: '/app/settings', icon: Settings }

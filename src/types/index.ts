@@ -131,6 +131,74 @@ export interface ClassMaterial {
   downloadCount: number;
 }
 
+// ==================== TÀI LIỆU HỌC TẬP TRƯỜNG HỌC (LEARNING MATERIALS) ====================
+
+export type MaterialFileType = 'pdf' | 'docx' | 'pptx' | 'txt' | 'image';
+export type MaterialStatus = 'draft' | 'published' | 'archived';
+
+export interface LearningMaterial {
+  id: string;
+  title: string;
+  description: string;
+  originalFileName: string;
+  storageKey: string; // Khóa định danh file an toàn trong Blob Storage, không lộ file path
+  contentType: string; // MIME type: e.g. 'application/pdf'
+  fileSize: number; // bytes
+  fileSizeFormatted: string; // e.g. "2.4 MB"
+  fileType: MaterialFileType;
+  uploadedBy: string; // User ID
+  uploadedByName: string;
+  schoolId: string; // ID trường sở hữu
+  subjectId?: string; // ID môn học liên kết
+  subjectName?: string;
+  topic?: string; // Chuyên đề / bài giảng
+  status: MaterialStatus; // draft | published | archived
+  sharedClassIds: string[]; // Danh sách lớp được giao quyền xem tài liệu
+  downloadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== NGÂN HÀNG CÂU HỎI TRƯỜNG HỌC (QUESTION BANK) ====================
+
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'true_false' | 'essay';
+export type QuestionScope = 'personal' | 'school_shared' | 'global_shared';
+export type QuestionStatus = 'draft' | 'active' | 'archived';
+
+export interface BankQuestion {
+  id: string;
+  content: string; // Nội dung câu hỏi
+  type: QuestionType; // Loại câu hỏi
+  options?: string[]; // Danh sách các lựa chọn (single_choice, multiple_choice, true_false)
+  correctAnswer?: number; // Index đáp án đúng (single_choice, true_false)
+  correctAnswers?: number[]; // Mảng các index đáp án đúng (multiple_choice)
+  sampleAnswer?: string; // Đáp án mẫu / Gợi ý làm bài (tự luận essay)
+  rubric?: string; // Tiêu chí chấm điểm và thang điểm (tự luận essay)
+  explanation?: string; // Lời giải thích chi tiết
+  subjectId?: string;
+  subjectName?: string;
+  gradeLevel?: string; // Khối 10, Khối 11, Khối 12, Đại học...
+  topic?: string; // Chuyên đề / bài học
+  difficulty: DifficultyLevel; // easy | medium | hard
+  defaultPoints: number; // Điểm số mặc định
+  createdBy: string; // User ID giáo viên tạo
+  createdByName: string;
+  schoolId: string; // ID trường sở hữu
+  scope: QuestionScope; // personal | school_shared | global_shared
+  status: QuestionStatus; // draft | active | archived
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Phiên bản câu hỏi an toàn gửi cho học sinh làm bài:
+ * Tuyệt đối LOẠI BỎ correctAnswer, correctAnswers, sampleAnswer, rubric, explanation
+ */
+export type SanitizedStudentQuestion = Omit<
+  BankQuestion,
+  'correctAnswer' | 'correctAnswers' | 'sampleAnswer' | 'rubric' | 'explanation'
+>;
+
 export interface Classroom {
   id: string;
   code: string; // Mã tham gia 6 ký tự, ví dụ: "WEB-8821"
@@ -174,6 +242,100 @@ export interface ClassJoinRequest {
 }
 
 export type AssignmentType = 'practice' | 'exam';
+
+// ==================== HỆ THỐNG ĐỀ KIỂM TRA & BÀI TẬP TOÀN DIỆN (ASSESSMENTS & EXAMS) ====================
+
+export type AssessmentType = 'assignment' | 'exam';
+export type AssessmentStatus = 'draft' | 'published' | 'closed' | 'archived';
+export type ShowResultPolicy = 'immediate' | 'after_closed' | 'manual';
+
+export interface AssessmentQuestionSnapshot {
+  id: string; // Snapshot ID
+  originalQuestionId: string;
+  order: number;
+  content: string;
+  type: QuestionType;
+  options?: string[];
+  correctAnswer?: number;
+  correctAnswers?: number[];
+  sampleAnswer?: string;
+  rubric?: string;
+  explanation?: string;
+  points: number; // Điểm số cho câu hỏi trong bài thi
+}
+
+export interface Assessment {
+  id: string;
+  title: string;
+  description: string;
+  type: AssessmentType; // 'assignment' (bài tập) hoặc 'exam' (bài thi thời lượng)
+  schoolId: string;
+  classId: string;
+  className: string;
+  subjectId?: string;
+  subjectName?: string;
+  createdBy: string;
+  createdByName: string;
+  durationMinutes: number; // 0 nếu không giới hạn thời gian làm
+  availableFrom: string; // ISO datetime bắt đầu cho phép làm bài
+  availableUntil: string; // ISO datetime hạn chót đóng bài
+  maxScore: number; // Tổng điểm tối đa (ví dụ 10 hoặc 100)
+  status: AssessmentStatus; // draft | published | closed | archived
+  shuffleQuestions: boolean; // Trộn câu hỏi
+  shuffleOptions: boolean; // Trộn các phương án A/B/C/D
+  showResultPolicy: ShowResultPolicy; // Chính sách công bố kết quả
+  preventTabSwitch: boolean; // Khóa chuyển tab chống gian lận
+  maxTabSwitchViolations: number;
+  questionIds: string[]; // ID câu hỏi trong ngân hàng
+  questionSnapshots: AssessmentQuestionSnapshot[]; // Snapshot đóng băng câu hỏi tại lúc xuất bản
+  totalQuestions: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AttemptStatus =
+  | 'taking'
+  | 'submitted'
+  | 'auto_submitted_expired'
+  | 'violation_auto_submitted'
+  | 'graded';
+
+export interface AttemptAnswer {
+  questionId: string;
+  type: QuestionType;
+  selectedAnswer?: number; // single_choice, true_false
+  selectedAnswers?: number[]; // multiple_choice
+  essayAnswer?: string; // essay
+  maxPoints: number;
+  earnedPoints: number;
+  gradingStatus: 'pending' | 'auto_graded' | 'manually_graded';
+  teacherFeedback?: string;
+  updatedAt: string;
+}
+
+export interface AssessmentAttempt {
+  id: string;
+  assessmentId: string;
+  classId: string;
+  className: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  attemptNumber: number;
+  startedAt: string;
+  deadlineAt: string; // Hạn chót do backend kiểm soát: startedAt + duration
+  submittedAt?: string;
+  status: AttemptStatus;
+  tabSwitchCount: number;
+  answers: Record<string, AttemptAnswer>; // Map questionId -> AttemptAnswer
+  score: number; // Tổng điểm đạt được
+  maxScore: number;
+  needsManualGrading: boolean; // True nếu có câu tự luận chưa chấm
+  gradedAt?: string;
+  gradedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface ClassAssignment {
   id: string;
@@ -299,8 +461,30 @@ export interface AuditLog {
     | 'CLASS_STUDENT_REMOVED'
     | 'CLASS_STUDENT_LEFT'
     | 'CLASS_CODE_REGENERATED'
-    | 'ASSIGNMENT_CREATED';
-  targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'school' | 'subject' | 'join_request' | 'system';
+    | 'ASSIGNMENT_CREATED'
+    | 'MATERIAL_UPLOADED'
+    | 'MATERIAL_UPDATED'
+    | 'MATERIAL_ARCHIVED'
+    | 'MATERIAL_DELETED'
+    | 'MATERIAL_SHARED'
+    | 'MATERIAL_DOWNLOADED'
+    | 'QUESTION_CREATED'
+    | 'QUESTION_UPDATED'
+    | 'QUESTION_ARCHIVED'
+    | 'QUESTION_DELETED'
+    | 'QUESTION_CLONED'
+    | 'QUESTION_IMPORTED'
+    | 'ASSESSMENT_CREATED'
+    | 'ASSESSMENT_UPDATED'
+    | 'ASSESSMENT_PUBLISHED'
+    | 'ASSESSMENT_CLOSED'
+    | 'ASSESSMENT_DELETED'
+    | 'ASSESSMENT_STARTED'
+    | 'ASSESSMENT_SUBMITTED'
+    | 'ASSESSMENT_AUTO_SUBMITTED'
+    | 'ASSESSMENT_GRADED'
+    | 'ASSESSMENT_SCORE_EDITED';
+  targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'assessment' | 'attempt' | 'school' | 'subject' | 'join_request' | 'material' | 'question' | 'system';
   targetId?: string;
   schoolId?: string;
   details: string;
@@ -323,6 +507,23 @@ export type Permission =
   | 'school:read'
   | 'subject:manage'
   | 'subject:read'
+  | 'material:create'
+  | 'material:read'
+  | 'material:update'
+  | 'material:delete'
+  | 'material:share'
+  | 'question:create'
+  | 'question:read'
+  | 'question:update'
+  | 'question:delete'
+  | 'question:share'
+  | 'assessment:create'
+  | 'assessment:read'
+  | 'assessment:update'
+  | 'assessment:delete'
+  | 'assessment:publish'
+  | 'assessment:grade'
+  | 'assessment:take'
   | 'audit:read';
 
 export type ApiResult<T> =

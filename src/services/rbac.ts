@@ -10,6 +10,11 @@ export interface AccessContext {
   resourceStudentId?: string;
   enrolledStudentIds?: string[];
   targetSchoolId?: string;
+  resourceOwnerId?: string;
+  resourceScope?: 'personal' | 'school_shared' | 'global_shared';
+  sharedClassIds?: string[];
+  enrolledClassIds?: string[];
+  materialStatus?: 'draft' | 'published' | 'archived';
 }
 
 export interface AccessDecision {
@@ -28,6 +33,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'assignment:submit',
     'subject:read',
     'school:read',
+    'material:read',
+    'question:read',
+    'assessment:read',
+    'assessment:take',
   ],
   teacher: [
     'class:create',
@@ -39,6 +48,22 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'proctor:monitor',
     'subject:read',
     'school:read',
+    'material:create',
+    'material:read',
+    'material:update',
+    'material:delete',
+    'material:share',
+    'question:create',
+    'question:read',
+    'question:update',
+    'question:delete',
+    'question:share',
+    'assessment:create',
+    'assessment:read',
+    'assessment:update',
+    'assessment:delete',
+    'assessment:publish',
+    'assessment:grade',
   ],
   school_admin: [
     'class:create',
@@ -51,6 +76,22 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'subject:manage',
     'subject:read',
     'school:read',
+    'material:create',
+    'material:read',
+    'material:update',
+    'material:delete',
+    'material:share',
+    'question:create',
+    'question:read',
+    'question:update',
+    'question:delete',
+    'question:share',
+    'assessment:create',
+    'assessment:read',
+    'assessment:update',
+    'assessment:delete',
+    'assessment:publish',
+    'assessment:grade',
     'audit:read',
   ],
   system_admin: [
@@ -69,6 +110,23 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'school:read',
     'subject:manage',
     'subject:read',
+    'material:create',
+    'material:read',
+    'material:update',
+    'material:delete',
+    'material:share',
+    'question:create',
+    'question:read',
+    'question:update',
+    'question:delete',
+    'question:share',
+    'assessment:create',
+    'assessment:read',
+    'assessment:update',
+    'assessment:delete',
+    'assessment:publish',
+    'assessment:grade',
+    'assessment:take',
     'audit:read',
   ],
 };
@@ -196,6 +254,107 @@ export const checkPermission = (
         allowed: false,
         code: 'FORBIDDEN',
         reason: 'Học sinh chưa tham gia lớp học này nên không có quyền truy cập nội dung.',
+      };
+    }
+  }
+
+  // 11. Quyền xem & truy cập tài liệu học tập (Materials ABAC)
+  if (permission === 'material:read' && user.role === 'student') {
+    // Học sinh không được xem tài liệu nháp hoặc đã lưu trữ
+    if (context?.materialStatus && context.materialStatus !== 'published') {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Học sinh chỉ có thể truy cập các tài liệu học tập đã được giáo viên công bố chính thức.',
+      };
+    }
+    // Học sinh chỉ được xem tài liệu chia sẻ cho lớp mà mình tham gia
+    if (
+      context?.sharedClassIds &&
+      context?.enrolledClassIds &&
+      !context.sharedClassIds.some((cid) => context.enrolledClassIds?.includes(cid))
+    ) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Tài liệu này không được chia sẻ cho bất kỳ lớp học nào bạn đang tham gia.',
+      };
+    }
+  }
+
+  // 12. Quyền chỉnh sửa, chia sẻ, xóa tài liệu (Material Modification ABAC)
+  if (
+    (permission === 'material:update' ||
+      permission === 'material:delete' ||
+      permission === 'material:share') &&
+    user.role === 'teacher'
+  ) {
+    if (context?.resourceOwnerId && context.resourceOwnerId !== user.id) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Giáo viên chỉ có quyền chỉnh sửa, chia sẻ hoặc xóa tài liệu do chính mình tải lên.',
+      };
+    }
+  }
+
+  // 13. Quyền Ngân hàng câu hỏi (Question Bank ABAC)
+  if (user.role === 'teacher') {
+    if (
+      (permission === 'question:update' || permission === 'question:delete') &&
+      context?.resourceOwnerId &&
+      context.resourceOwnerId !== user.id
+    ) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Giáo viên chỉ có quyền chỉnh sửa hoặc xóa câu hỏi trong kho cá nhân do chính mình biên soạn.',
+      };
+    }
+
+    if (
+      permission === 'question:read' &&
+      context?.resourceScope === 'personal' &&
+      context?.resourceOwnerId &&
+      context.resourceOwnerId !== user.id
+    ) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Câu hỏi riêng tư thuộc kho cá nhân của giáo viên khác, không được phép truy cập.',
+      };
+    }
+  }
+
+  // 14. Quyền Đề kiểm tra & Giao bài tập (Assessment ABAC)
+  if (user.role === 'teacher') {
+    if (
+      (permission === 'assessment:create' ||
+        permission === 'assessment:update' ||
+        permission === 'assessment:delete' ||
+        permission === 'assessment:publish' ||
+        permission === 'assessment:grade') &&
+      context?.resourceTeacherId &&
+      context.resourceTeacherId !== user.id
+    ) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Giáo viên chỉ có quyền quản lý, giao bài và chấm điểm cho các lớp học do mình trực tiếp phụ trách.',
+      };
+    }
+  }
+
+  if (user.role === 'student') {
+    if (
+      (permission === 'assessment:read' || permission === 'assessment:take') &&
+      context?.enrolledStudentIds &&
+      !context.enrolledStudentIds.includes(user.id)
+    ) {
+      return {
+        allowed: false,
+        code: 'FORBIDDEN',
+        reason: 'Học sinh không thuộc danh sách lớp được giao bài kiểm tra này.',
       };
     }
   }
