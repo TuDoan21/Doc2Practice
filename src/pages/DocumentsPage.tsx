@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FileText,
   UploadCloud,
@@ -14,7 +15,8 @@ import {
   FolderOpen,
   Calendar,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Sparkles
 } from 'lucide-react';
 import { getCurrentUser, type UserProfile } from '../services/auth';
 import {
@@ -328,16 +330,25 @@ export const DocumentsPage = () => {
         </div>
 
         {isTeacherOrAdmin && (
-          <button
-            onClick={() => {
-              resetUploadForm();
-              setIsUploadModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold text-sm shadow-sm transition-colors shrink-0"
-          >
-            <UploadCloud className="w-4 h-4" />
-            Tải tài liệu mới
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/app/ai-generate"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl font-bold text-xs shadow-sm transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              Tạo câu hỏi AI
+            </Link>
+            <button
+              onClick={() => {
+                resetUploadForm();
+                setIsUploadModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold text-xs shadow-sm transition-colors"
+            >
+              <UploadCloud className="w-4 h-4" />
+              Tải tài liệu mới
+            </button>
+          </div>
         )}
       </div>
 
@@ -532,6 +543,13 @@ export const DocumentsPage = () => {
 
                     {canManage && (
                       <>
+                        <Link
+                          to={`/app/ai-generate?materialId=${mat.id}`}
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Tạo câu hỏi AI từ tài liệu này"
+                        >
+                          <Sparkles className="w-4 h-4 text-indigo-600" />
+                        </Link>
                         <button
                           onClick={() => {
                             setSharingMaterial(mat);

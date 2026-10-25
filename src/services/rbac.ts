@@ -64,6 +64,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'assessment:delete',
     'assessment:publish',
     'assessment:grade',
+    'ai:generate',
   ],
   school_admin: [
     'class:create',
@@ -93,6 +94,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'assessment:publish',
     'assessment:grade',
     'audit:read',
+    'ai:generate',
   ],
   system_admin: [
     'class:create',
@@ -128,6 +130,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'assessment:grade',
     'assessment:take',
     'audit:read',
+    'ai:generate',
   ],
 };
 

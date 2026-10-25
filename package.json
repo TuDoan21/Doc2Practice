@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "tsx --test src/tests/auth.test.ts src/tests/school_management.test.ts src/tests/materials_and_questions.test.ts src/tests/assessment_and_grading.test.ts",
+    "test": "tsx --test src/tests/auth.test.ts src/tests/school_management.test.ts src/tests/materials_and_questions.test.ts src/tests/assessment_and_grading.test.ts src/tests/ai_question_generation.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

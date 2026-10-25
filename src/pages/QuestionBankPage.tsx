@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   HelpCircle,
   Plus,
@@ -12,7 +13,8 @@ import {
   Trash2,
   Eye,
   Check,
-  GraduationCap
+  GraduationCap,
+  Sparkles
 } from 'lucide-react';
 import { getCurrentUser, type UserProfile } from '../services/auth';
 import {
@@ -413,6 +415,14 @@ Mặt Trời mọc ở hướng Đông và lặn ở hướng Tây.,true_false,�
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          <Link
+            to="/app/ai-generate"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl font-bold text-xs shadow-sm transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            Tạo bằng AI
+          </Link>
+
           <button
             onClick={() => {
               setImportText(sampleCSVTemplate);

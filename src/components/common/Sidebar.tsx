@@ -13,7 +13,8 @@ import {
   LogOut,
   AlertTriangle,
   Users,
-  School
+  School,
+  Sparkles
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { getCurrentUser, type UserProfile } from '../../services/auth';
@@ -58,14 +59,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
       items.push({ label: 'Toàn bộ Lớp học', path: '/app/classes', icon: Users });
       items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
+      items.push({ label: 'Tạo câu hỏi AI', path: '/app/ai-generate', icon: Sparkles });
     } else if (currentUser.role === 'school_admin') {
       items.push({ label: 'Trường & Nhân sự', path: '/app/school-admin', icon: School });
       items.push({ label: 'Quản lý Môn học', path: '/app/subjects', icon: BookOpen });
       items.push({ label: 'Lớp học & Phân công', path: '/app/classes', icon: Users });
       items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
+      items.push({ label: 'Tạo câu hỏi AI', path: '/app/ai-generate', icon: Sparkles });
     } else if (currentUser.role === 'teacher') {
       items.push({ label: 'Quản lý Lớp học', path: '/app/classes', icon: Users });
       items.push({ label: 'Ngân hàng câu hỏi', path: '/app/question-bank', icon: HelpCircle });
+      items.push({ label: 'Tạo câu hỏi AI', path: '/app/ai-generate', icon: Sparkles });
     } else {
       items.push({ label: 'Lớp học của tôi', path: '/app/classes', icon: Users });
     }
@@ -105,16 +109,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           </div>
         </div>
 
-        {/* Action Button: Tạo bộ câu hỏi */}
+        {/* Action Button */}
         <div className="p-4">
-          <NavLink
-            to="/app/create-quiz"
-            onClick={onCloseMobile}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-medium text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all transform active:scale-98"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Tạo bộ câu hỏi mới</span>
-          </NavLink>
+          {currentUser.role === 'student' ? (
+            <NavLink
+              to="/app/create-quiz"
+              onClick={onCloseMobile}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-medium text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all transform active:scale-98"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Tạo bộ ôn tập cá nhân</span>
+            </NavLink>
+          ) : (
+            <NavLink
+              to="/app/ai-generate"
+              onClick={onCloseMobile}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-medium text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all transform active:scale-98"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Tạo câu hỏi AI từ tài liệu</span>
+            </NavLink>
+          )}
         </div>
 
         {/* Navigation links */}

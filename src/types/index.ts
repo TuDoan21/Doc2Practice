@@ -483,7 +483,8 @@ export interface AuditLog {
     | 'ASSESSMENT_SUBMITTED'
     | 'ASSESSMENT_AUTO_SUBMITTED'
     | 'ASSESSMENT_GRADED'
-    | 'ASSESSMENT_SCORE_EDITED';
+    | 'ASSESSMENT_SCORE_EDITED'
+    | 'AI_QUESTIONS_GENERATED';
   targetType: 'user' | 'teacher_request' | 'classroom' | 'assignment' | 'assessment' | 'attempt' | 'school' | 'subject' | 'join_request' | 'material' | 'question' | 'system';
   targetId?: string;
   schoolId?: string;
@@ -524,7 +525,57 @@ export type Permission =
   | 'assessment:publish'
   | 'assessment:grade'
   | 'assessment:take'
-  | 'audit:read';
+  | 'audit:read'
+  | 'ai:generate';
+
+export interface AIGenerationConfig {
+  materialIds?: string[]; // 1 hoặc nhiều ID tài liệu từ Phase 5
+  materialTitle?: string;
+  textContent?: string; // Nội dung văn bản trực tiếp
+  subjectId?: string;
+  subjectName?: string;
+  topic?: string;
+  gradeLevel?: string;
+  questionCount: number; // 1 - 30
+  questionTypes: QuestionType[]; // ['single_choice', 'multiple_choice', 'true_false', 'essay']
+  difficulty: DifficultyLevel; // 'easy' | 'medium' | 'hard'
+  customPrompt?: string; // Lệnh tùy chỉnh từ giáo viên
+  apiKey?: string; // Khóa Gemini tùy chọn
+}
+
+export interface AIGeneratedQuestionDraft {
+  id: string; // Tạm thời trong giao diện duyệt
+  content: string;
+  type: QuestionType;
+  options?: string[]; // single_choice, multiple_choice, true_false
+  correctAnswer?: number; // single_choice, true_false
+  correctAnswers?: number[]; // multiple_choice
+  sampleAnswer?: string; // essay
+  rubric?: string; // essay
+  explanation?: string;
+  difficulty: DifficultyLevel;
+  topic?: string;
+  subjectId?: string;
+  subjectName?: string;
+  gradeLevel?: string;
+  defaultPoints?: number;
+  sourceReference?: string; // Trích đoạn gốc từ tài liệu
+  isSelected?: boolean;
+  validationError?: string;
+}
+
+export interface AIGenerationResult {
+  success: boolean;
+  drafts: AIGeneratedQuestionDraft[];
+  sourceMaterialIds: string[];
+  summary: {
+    totalRequested: number;
+    totalGenerated: number;
+    byType: Record<QuestionType, number>;
+    difficulty: DifficultyLevel;
+  };
+  warnings?: string[];
+}
 
 export type ApiResult<T> =
   | { success: true; data: T; message?: string }

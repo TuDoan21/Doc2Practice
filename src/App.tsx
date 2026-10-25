@@ -19,6 +19,7 @@ import { SchoolsManagementPage } from './pages/SchoolsManagementPage';
 import { SubjectsManagementPage } from './pages/SubjectsManagementPage';
 import { SchoolAdminPage } from './pages/SchoolAdminPage';
 import { QuestionBankPage } from './pages/QuestionBankPage';
+import { AIGenerateQuizPage } from './pages/AIGenerateQuizPage';
 import { TakeAssessmentPage } from './pages/TakeAssessmentPage';
 import { AssessmentResultPage } from './pages/AssessmentResultPage';
 import { LoginPage } from './pages/LoginPage';
@@ -74,6 +75,7 @@ function App() {
           <Route path="assessment/:id/result" element={<AssessmentResultPage />} />
           <Route path="attempt/:id/result" element={<AssessmentResultPage />} />
           <Route path="question-bank" element={<QuestionBankPage />} />
+          <Route path="ai-generate" element={<AIGenerateQuizPage />} />
           <Route path="schools" element={<SchoolsManagementPage />} />
           <Route path="subjects" element={<SubjectsManagementPage />} />
           <Route path="school-admin" element={<SchoolAdminPage />} />
